@@ -40,6 +40,8 @@
 /* Private macro -------------------------------------------------------------*/
 /* USER CODE BEGIN PM */
 
+/* Single byte to store input */
+uint8_t byte;
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
@@ -48,7 +50,8 @@ UART_HandleTypeDef huart2;
 UART_HandleTypeDef huart3;
 
 /* USER CODE BEGIN PV */
-
+char buffer[1000];
+int size_buffer = 0;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -58,7 +61,7 @@ static void MX_USART1_UART_Init(void);
 static void MX_USART2_UART_Init(void);
 static void MX_USART3_UART_Init(void);
 /* USER CODE BEGIN PFP */
-
+int Wait_for(char * string);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -181,88 +184,72 @@ int main(void)
   MX_USART2_UART_Init();
   MX_USART3_UART_Init();
   /* USER CODE BEGIN 2 */
+  RetargetInit(&huart2);
+  //printf("Init...\n\r");
 
-  //pulizia terminale
-   //HAL_UART_Transmit(&huart2, (uint8_t*)"\027[2J", strlen("\027[2J"), HAL_MAX_DELAY);
-
-   RetargetInit(&huart2);
-
-   //setvbuf(stdout, NULL, _IONBF, 0);
-   printf("Init done\n\r");
-   //setvbuf(stdout, NULL, _IONBF, 0);
-
-   char buf[100];
-   memset(buf, 0, sizeof(buf));
+  HAL_UART_Receive_IT(&huart3, &byte, 1);
 
    /////RST
 
-   HAL_UART_Transmit(&huart3, (uint8_t*) ("AT+RST\r\n"), strlen("AT+RST\r\n"), 1000);
+   //HAL_UART_Transmit(&huart3, (uint8_t*) ("AT+RST\r\n"), strlen("AT+RST\r\n"), 1000);
+   //HAL_Delay(5000);
 
-   //HAL_UART_Receive(&huart3, (uint8_t *) buf, sizeof(buf), 1000);
-   //printf("reset: %s\r\n", buf);
-   printf("RESET\r\n");
-   //setvbuf(stdout, NULL, _IONBF, 0);
-   HAL_Delay(3000);
+   HAL_UART_Transmit(&huart3, (uint8_t*) ("AT+RESTORE\r\n"), strlen("AT+RESTORE\r\n"), 1000);
+   int w = Wait_for("AT+RESTORE");
+   printf("buf: %s\r\n", buffer);
+
+   //HAL_Delay(1000);
+
 
    /////AT
 
    HAL_UART_Transmit(&huart3, (uint8_t*) ("AT\r\n"), strlen("AT\r\n"), 1000);
-
-   HAL_UART_Receive(&huart3, (uint8_t *) (buf), sizeof(buf), 1000);
-   HAL_UART_Transmit(&huart2, (uint8_t*) (buf), sizeof(buf), 1000);
-
-   printf("AT: %s\r\n", buf);
-   //setvbuf(stdout, NULL, _IONBF, 0);
-   memset(buf, 0, sizeof(buf));
-   HAL_Delay(2000);
+   HAL_Delay(5000);
 
    /////CWMODE
 
    HAL_UART_Transmit(&huart3, (uint8_t*) ("AT+CWMODE=1\r\n"), strlen("AT+CWMODE=1\r\n"), 1000);
-   HAL_UART_Receive(&huart3, (uint8_t *) buf, sizeof(buf), 1000);
-
-   printf("AT+CWMODE=1: %s\r\n", buf);
-   //setvbuf(stdout, NULL, _IONBF, 0);
-   memset(buf, 0, sizeof(buf));
+   HAL_Delay(5000);
 
    ///CWJAP
 
-   char data[60];
+   char data[200];
    memset(data, 0, sizeof(data));
-   sprintf (data, "AT+CWJAP=\"jackhuai\",\"laborra2\"\r\n");
-   //sprintf (data, "AT+CWJAP=\"iPhone di Federico\",\"12345678\"\r\n");
-   HAL_UART_Transmit(&huart3, (uint8_t *) (data), sizeof(data), 1000);
+   //sprintf (data, "AT+CWJAP=\"jackhuai\",\"laborra2\"\r\n");
 
-   HAL_UART_Receive(&huart3, (uint8_t *) buf, sizeof(buf), 1000);
-   printf("AT+CWJAP: %s\r\n", buf);
-   //setvbuf(stdout, NULL, _IONBF, 0);
-   memset(buf, 0, sizeof(buf));
+   sprintf (data, "AT+CWJAP=\"iPhone di Federico\",\"12345678\"\r\n");
+   HAL_UART_Transmit(&huart3, (uint8_t *) (data), sizeof(data), 1000);
+   HAL_Delay(5000);
+
    ///CIPMUX
    HAL_UART_Transmit(&huart3, (uint8_t*) ("AT+CIPMUX=0\r\n"), strlen("AT+CIPMUX=0\r\n"), 1000);
-   HAL_UART_Receive(&huart3, (uint8_t *) buf, sizeof(buf), 1000);
-   printf("AT+CIPMUX=0: %s\r\n", buf);
-   //setvbuf(stdout, NULL, _IONBF, 0);
-   memset(buf, 0, sizeof(buf));
+
 
    printf("Setup end\n\r");
-   //setvbuf(stdout, NULL, _IONBF, 0);
 
    HAL_Delay(5000);
 
+   memset(data, 0, sizeof(data));
+   HAL_UART_Transmit(&huart3, (uint8_t*) ("AT+CIPSTATUS\r\n"), strlen("AT+CIPSTATUS\r\r\n"), 1000);
+   HAL_UART_Receive(&huart3, (uint8_t *) data, sizeof(data), 1000);
+  printf("%s\r\n", data);
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   uint16_t counter = 0;
   while (1){
+	  /*
+	  HAL_UART_Transmit(&huart3, (uint8_t*) ("AT\r\n"), strlen("AT\r\n"), 1000);
 
+	  HAL_UART_Transmit(&huart3, (uint8_t*) ("AT\r\n"), strlen("AT\r\n"), 1000);
 	  HAL_UART_Transmit(&huart3, (uint8_t*) ("AT+CIPSTART=\"TCP\",\"api.thingspeak.com\",80\r\n"), strlen("AT+CIPSTART=\"TCP\",\"api.thingspeak.com\",80\r\n"), 1000);
-	  HAL_UART_Receive(&huart3, (uint8_t *) buf, sizeof(buf), 1000);
+	  //HAL_UART_Receive(&huart3, (uint8_t *) buf, sizeof(buf), 1000);
 	  printf("%s\r\n", buf);
 
 	  char local_buf[100] = {0};
 	  char local_buf2[30] = {0};
-	  HAL_UART_Receive(&huart3, (uint8_t *) buf, sizeof(buf), 3000);
+	  //HAL_UART_Receive(&huart3, (uint8_t *) buf, sizeof(buf), 3000);
 	  printf("%s\r\n", buf);
 	  memset(buf, 0, sizeof(buf));
 
@@ -280,7 +267,7 @@ int main(void)
 	  HAL_Delay(1000);
 
 	  HAL_UART_Transmit(&huart3, (uint8_t*) ("AT+CIPCLOSE\r\n"), strlen("AT+CIPCLOSE\r\n"), 1000);
-	  HAL_Delay(22000);
+	  HAL_Delay(22000);*/
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -446,6 +433,33 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
+/* This callback is called by the HAL_UART_IRQHandler when the given number of bytes are received */
+void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
+{
+  if (huart->Instance == USART3)
+  {
+	buffer[size_buffer] = byte;
+	if(size_buffer == 999){
+		size_buffer = 0;
+	}else{
+		size_buffer++;
+	}
+
+    /* Transmit one byte with 100 ms timeout */
+    HAL_UART_Transmit(&huart2, &byte, 1, 0);
+
+    /* Receive one byte in interrupt mode */
+    HAL_UART_Receive_IT(&huart3, &byte, 1);
+  }
+}
+
+int Wait_for(char * string){
+	HAL_Delay(8000);
+	char *ret;
+	ret = strstr(buffer, string);
+	if(ret) return 1;
+	return 0;
+}
 
 /* USER CODE END 4 */
 
