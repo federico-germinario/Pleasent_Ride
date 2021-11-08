@@ -218,7 +218,6 @@ int main(void)
    memset(data, 0, sizeof(data));
    sprintf (data, "AT+CWJAP=\"jackhuai\",\"laborra2\"\r\n");
 
-   //sprintf (data, "AT+CWJAP=\"iPhone di Federico\",\"12345678\"\r\n");
    HAL_UART_Transmit(&huart3, (uint8_t *) (data), sizeof(data), 1000);
    HAL_Delay(5000);
 
