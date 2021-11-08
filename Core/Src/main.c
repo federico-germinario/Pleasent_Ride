@@ -195,7 +195,8 @@ int main(void)
    //HAL_Delay(5000);
 
    HAL_UART_Transmit(&huart3, (uint8_t*) ("AT+RESTORE\r\n"), strlen("AT+RESTORE\r\n"), 1000);
-   int w = Wait_for("AT+RESTORE");
+
+   //int w = Wait_for("AT+RESTORE");
    printf("buf: %s\r\n", buffer);
 
    //HAL_Delay(1000);
@@ -215,9 +216,9 @@ int main(void)
 
    char data[200];
    memset(data, 0, sizeof(data));
-   //sprintf (data, "AT+CWJAP=\"jackhuai\",\"laborra2\"\r\n");
+   sprintf (data, "AT+CWJAP=\"jackhuai\",\"laborra2\"\r\n");
 
-   sprintf (data, "AT+CWJAP=\"iPhone di Federico\",\"12345678\"\r\n");
+   //sprintf (data, "AT+CWJAP=\"iPhone di Federico\",\"12345678\"\r\n");
    HAL_UART_Transmit(&huart3, (uint8_t *) (data), sizeof(data), 1000);
    HAL_Delay(5000);
 
@@ -232,6 +233,14 @@ int main(void)
    memset(data, 0, sizeof(data));
    HAL_UART_Transmit(&huart3, (uint8_t*) ("AT+CIPSTATUS\r\n"), strlen("AT+CIPSTATUS\r\r\n"), 1000);
    HAL_UART_Receive(&huart3, (uint8_t *) data, sizeof(data), 1000);
+
+   char *ret;
+     ret = strstr(tmp, "literal");
+       if (ret)
+           printf("found substring at address %p\n", ret);
+       else
+           printf("no substring found!\n");
+
   printf("%s\r\n", data);
   /* USER CODE END 2 */
 
