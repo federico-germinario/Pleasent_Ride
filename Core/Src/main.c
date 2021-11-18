@@ -45,9 +45,9 @@ uint8_t byte;
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
-UART_HandleTypeDef huart1;
+TIM_HandleTypeDef htim2;
+
 UART_HandleTypeDef huart2;
-UART_HandleTypeDef huart3;
 
 /* USER CODE BEGIN PV */
 char buffer[1000];
@@ -57,98 +57,14 @@ int size_buffer = 0;
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
-static void MX_USART1_UART_Init(void);
 static void MX_USART2_UART_Init(void);
-static void MX_USART3_UART_Init(void);
+static void MX_TIM2_Init(void);
 /* USER CODE BEGIN PFP */
 int Wait_for(char * string);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-
-#if !defined(OS_USE_SEMIHOSTING)
-#include <errno.h>
-#include <sys/stat.h>
-#define STDIN_FILENO 0
-#define STDOUT_FILENO 1
-#define STDERR_FILENO 2
-
-UART_HandleTypeDef* gHuart;
-
-void  RetargetInit(UART_HandleTypeDef *huart){
-	gHuart=huart;
-
-	setvbuf(stdout, NULL, _IONBF, 0);
-}
-
-int _isatty(int fd){
-	if(fd>=STDIN_FILENO && fd<=STDERR_FILENO){
-		return 1;
-	}
-
-	errno = EBADF;
-	return 0;
-}
-
-int _write(int fd, char* ptr, int len) {
-	HAL_StatusTypeDef hstatus;
-
-	if (fd == STDOUT_FILENO || fd == STDERR_FILENO) {
-		hstatus = HAL_UART_Transmit(gHuart, (uint8_t *) ptr, len, HAL_MAX_DELAY);
-		if (hstatus == HAL_OK)
-			return len;
-		else
-			return EIO;
-	}
-	errno = EBADF;
-	return -1;
-}
-
-int _close(int fd) {
-	if (fd >= STDIN_FILENO && fd <= STDERR_FILENO)
-		return 0;
-
-	errno = EBADF;
-	return -1;
-}
-
-int _lseek(int fd, int ptr, int dir) {
-	(void) fd;
-	(void) ptr;
-	(void) dir;
-
-	errno = EBADF;
-	return -1;
-}
-
-int _read(int fd, char* ptr, int len) {
-	HAL_StatusTypeDef hstatus;
-
-	if (fd == STDIN_FILENO) {
-		hstatus = HAL_UART_Receive(gHuart, (uint8_t *) ptr, 1, HAL_MAX_DELAY);
-		if (hstatus == HAL_OK)
-			return 1;
-		else
-			return EIO;
-	}
-
-	errno = EBADF;
-	return -1;
-}
-
-int _fstat(int fd, struct stat* st) {
-	if (fd >= STDIN_FILENO && fd <= STDERR_FILENO) {
-		st->st_mode = S_IFCHR;
-		return 0;
-	}
-
-	errno = EBADF;
-	return 0;
-
-}
-
-#endif
 
 /* USER CODE END 0 */
 
@@ -180,109 +96,22 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
-  MX_USART1_UART_Init();
   MX_USART2_UART_Init();
-  MX_USART3_UART_Init();
+  MX_TIM2_Init();
   /* USER CODE BEGIN 2 */
-  RetargetInit(&huart2);
-  //printf("Init...\n\r");
-
-  HAL_UART_Receive_IT(&huart3, &byte, 1);
-
-   /////RST
-
-   //HAL_UART_Transmit(&huart3, (uint8_t*) ("AT+RST\r\n"), strlen("AT+RST\r\n"), 1000);
-   //HAL_Delay(5000);
-
-   HAL_UART_Transmit(&huart3, (uint8_t*) ("AT+RESTORE\r\n"), strlen("AT+RESTORE\r\n"), 1000);
-
-   //int w = Wait_for("AT+RESTORE");
-   printf("buf: %s\r\n", buffer);
-
-   //HAL_Delay(1000);
-
-
-   /////AT
-
-   HAL_UART_Transmit(&huart3, (uint8_t*) ("AT\r\n"), strlen("AT\r\n"), 1000);
-   HAL_Delay(5000);
-
-   /////CWMODE
-
-   HAL_UART_Transmit(&huart3, (uint8_t*) ("AT+CWMODE=1\r\n"), strlen("AT+CWMODE=1\r\n"), 1000);
-   HAL_Delay(5000);
-
-   ///CWJAP
-
-   char data[200];
-   memset(data, 0, sizeof(data));
-   sprintf (data, "AT+CWJAP=\"jackhuai\",\"laborra2\"\r\n");
-
-   //sprintf (data, "AT+CWJAP=\"iPhone di Federico\",\"12345678\"\r\n");
-   HAL_UART_Transmit(&huart3, (uint8_t *) (data), sizeof(data), 1000);
-   HAL_Delay(5000);
-
-   ///CIPMUX
-   HAL_UART_Transmit(&huart3, (uint8_t*) ("AT+CIPMUX=0\r\n"), strlen("AT+CIPMUX=0\r\n"), 1000);
-
-
-   printf("Setup end\n\r");
-
-   HAL_Delay(5000);
-
-   memset(data, 0, sizeof(data));
-   HAL_UART_Transmit(&huart3, (uint8_t*) ("AT+CIPSTATUS\r\n"), strlen("AT+CIPSTATUS\r\r\n"), 1000);
-   HAL_UART_Receive(&huart3, (uint8_t *) data, sizeof(data), 1000);
-
-   char *ret;
-     ret = strstr(tmp, "literal");
-       if (ret)
-           printf("found substring at address %p\n", ret);
-       else
-           printf("no substring found!\n");
-
-  printf("%s\r\n", data);
+  HAL_GPIO_WritePin(ESP_Reset_GPIO_Port, ESP_Reset_Pin, GPIO_PIN_SET);
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
-  uint16_t counter = 0;
   while (1){
-	  /*
-	  HAL_UART_Transmit(&huart3, (uint8_t*) ("AT\r\n"), strlen("AT\r\n"), 1000);
-
-	  HAL_UART_Transmit(&huart3, (uint8_t*) ("AT\r\n"), strlen("AT\r\n"), 1000);
-	  HAL_UART_Transmit(&huart3, (uint8_t*) ("AT+CIPSTART=\"TCP\",\"api.thingspeak.com\",80\r\n"), strlen("AT+CIPSTART=\"TCP\",\"api.thingspeak.com\",80\r\n"), 1000);
-	  //HAL_UART_Receive(&huart3, (uint8_t *) buf, sizeof(buf), 1000);
-	  printf("%s\r\n", buf);
-
-	  char local_buf[100] = {0};
-	  char local_buf2[30] = {0};
-	  //HAL_UART_Receive(&huart3, (uint8_t *) buf, sizeof(buf), 3000);
-	  printf("%s\r\n", buf);
-	  memset(buf, 0, sizeof(buf));
-
-	  sprintf (local_buf, "GET /update?api_key=%s&field%d=%u\r\n", "MK77FV2ZF1VMIUYQ", 1, counter);
-	  counter = counter +1;
-	  int len = strlen (local_buf);
-
-	  sprintf (local_buf2, "AT+CIPSEND=%d\r\n", len);
-	  HAL_UART_Transmit(&huart3, (uint8_t *) local_buf2, sizeof(local_buf2), 1000);
-
-	  HAL_Delay(1000);
-
-	  HAL_UART_Transmit(&huart3, (uint8_t *) local_buf, sizeof(local_buf), 1000);
-
-	  HAL_Delay(1000);
-
-	  HAL_UART_Transmit(&huart3, (uint8_t*) ("AT+CIPCLOSE\r\n"), strlen("AT+CIPCLOSE\r\n"), 1000);
-	  HAL_Delay(22000);*/
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
   }
   /* USER CODE END 3 */
 }
+
 
 /**
   * @brief System Clock Configuration
@@ -329,35 +158,47 @@ void SystemClock_Config(void)
 }
 
 /**
-  * @brief USART1 Initialization Function
+  * @brief TIM2 Initialization Function
   * @param None
   * @retval None
   */
-static void MX_USART1_UART_Init(void)
+static void MX_TIM2_Init(void)
 {
 
-  /* USER CODE BEGIN USART1_Init 0 */
+  /* USER CODE BEGIN TIM2_Init 0 */
 
-  /* USER CODE END USART1_Init 0 */
+  /* USER CODE END TIM2_Init 0 */
 
-  /* USER CODE BEGIN USART1_Init 1 */
+  TIM_ClockConfigTypeDef sClockSourceConfig = {0};
+  TIM_MasterConfigTypeDef sMasterConfig = {0};
 
-  /* USER CODE END USART1_Init 1 */
-  huart1.Instance = USART1;
-  huart1.Init.BaudRate = 115200;
-  huart1.Init.WordLength = UART_WORDLENGTH_8B;
-  huart1.Init.StopBits = UART_STOPBITS_1;
-  huart1.Init.Parity = UART_PARITY_NONE;
-  huart1.Init.Mode = UART_MODE_TX_RX;
-  huart1.Init.HwFlowCtl = UART_HWCONTROL_NONE;
-  huart1.Init.OverSampling = UART_OVERSAMPLING_16;
-  if (HAL_UART_Init(&huart1) != HAL_OK)
+  /* USER CODE BEGIN TIM2_Init 1 */
+
+  /* USER CODE END TIM2_Init 1 */
+  htim2.Instance = TIM2;
+  htim2.Init.Prescaler = 49999;
+  htim2.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim2.Init.Period = 29999;
+  htim2.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+  htim2.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  if (HAL_TIM_Base_Init(&htim2) != HAL_OK)
   {
     Error_Handler();
   }
-  /* USER CODE BEGIN USART1_Init 2 */
+  sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
+  if (HAL_TIM_ConfigClockSource(&htim2, &sClockSourceConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
+  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+  if (HAL_TIMEx_MasterConfigSynchronization(&htim2, &sMasterConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN TIM2_Init 2 */
 
-  /* USER CODE END USART1_Init 2 */
+  /* USER CODE END TIM2_Init 2 */
 
 }
 
@@ -395,79 +236,51 @@ static void MX_USART2_UART_Init(void)
 }
 
 /**
-  * @brief USART3 Initialization Function
-  * @param None
-  * @retval None
-  */
-static void MX_USART3_UART_Init(void)
-{
-
-  /* USER CODE BEGIN USART3_Init 0 */
-
-  /* USER CODE END USART3_Init 0 */
-
-  /* USER CODE BEGIN USART3_Init 1 */
-
-  /* USER CODE END USART3_Init 1 */
-  huart3.Instance = USART3;
-  huart3.Init.BaudRate = 115200;
-  huart3.Init.WordLength = UART_WORDLENGTH_8B;
-  huart3.Init.StopBits = UART_STOPBITS_1;
-  huart3.Init.Parity = UART_PARITY_NONE;
-  huart3.Init.Mode = UART_MODE_TX_RX;
-  huart3.Init.HwFlowCtl = UART_HWCONTROL_NONE;
-  huart3.Init.OverSampling = UART_OVERSAMPLING_16;
-  if (HAL_UART_Init(&huart3) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /* USER CODE BEGIN USART3_Init 2 */
-
-  /* USER CODE END USART3_Init 2 */
-
-}
-
-/**
   * @brief GPIO Initialization Function
   * @param None
   * @retval None
   */
 static void MX_GPIO_Init(void)
 {
+  GPIO_InitTypeDef GPIO_InitStruct = {0};
 
   /* GPIO Ports Clock Enable */
+  __HAL_RCC_GPIOC_CLK_ENABLE();
   __HAL_RCC_GPIOA_CLK_ENABLE();
-  __HAL_RCC_GPIOB_CLK_ENABLE();
+  __HAL_RCC_GPIOD_CLK_ENABLE();
+
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(GPIOD, ESP_Reset_Pin|GPIO_PIN_14, GPIO_PIN_RESET);
+
+  /*Configure GPIO pin : ESP_Signal_Pin */
+  GPIO_InitStruct.Pin = ESP_Signal_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  HAL_GPIO_Init(ESP_Signal_GPIO_Port, &GPIO_InitStruct);
+
+  /*Configure GPIO pins : ESP_Reset_Pin PD14 */
+  GPIO_InitStruct.Pin = ESP_Reset_Pin|GPIO_PIN_14;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(GPIOD, &GPIO_InitStruct);
+
+  /* EXTI interrupt init*/
+  HAL_NVIC_SetPriority(EXTI1_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(EXTI1_IRQn);
 
 }
 
 /* USER CODE BEGIN 4 */
-/* This callback is called by the HAL_UART_IRQHandler when the given number of bytes are received */
-void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
-{
-  if (huart->Instance == USART3)
-  {
-	buffer[size_buffer] = byte;
-	if(size_buffer == 999){
-		size_buffer = 0;
-	}else{
-		size_buffer++;
+// Callback interrupt ESP8266
+void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin){
+	if(GPIO_Pin == ESP_Signal_Pin){
+		char line[10];
+		snprintf(line, sizeof(line), "45,86\n");
+		HAL_UART_Transmit(&huart2, (uint8_t*) (line), strlen(line), 1000);
+		HAL_TIM_Base_Start_IT(&htim2); //Timer 30 sec
+		HAL_GPIO_WritePin(GPIOD, GPIO_PIN_14, GPIO_PIN_SET);
 	}
-
-    /* Transmit one byte with 100 ms timeout */
-    HAL_UART_Transmit(&huart2, &byte, 1, 0);
-
-    /* Receive one byte in interrupt mode */
-    HAL_UART_Receive_IT(&huart3, &byte, 1);
-  }
-}
-
-int Wait_for(char * string){
-	HAL_Delay(8000);
-	char *ret;
-	ret = strstr(buffer, string);
-	if(ret) return 1;
-	return 0;
 }
 
 /* USER CODE END 4 */
@@ -483,6 +296,13 @@ int Wait_for(char * string){
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
   /* USER CODE BEGIN Callback 0 */
+	if (htim->Instance == TIM2) {
+		HAL_GPIO_WritePin(GPIOD, GPIO_PIN_14, GPIO_PIN_RESET);
+		//Reset
+		HAL_GPIO_WritePin(ESP_Reset_GPIO_Port, ESP_Reset_Pin, GPIO_PIN_RESET);
+		HAL_Delay(20);
+		HAL_GPIO_WritePin(ESP_Reset_GPIO_Port, ESP_Reset_Pin, GPIO_PIN_SET);
+	  }
 
   /* USER CODE END Callback 0 */
   if (htim->Instance == TIM1) {

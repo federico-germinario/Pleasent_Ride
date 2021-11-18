@@ -58,6 +58,11 @@ void Error_Handler(void);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
+#define ESP_Signal_Pin GPIO_PIN_1
+#define ESP_Signal_GPIO_Port GPIOC
+#define ESP_Signal_EXTI_IRQn EXTI1_IRQn
+#define ESP_Reset_Pin GPIO_PIN_11
+#define ESP_Reset_GPIO_Port GPIOD
 /* USER CODE BEGIN Private defines */
 
 /* USER CODE END Private defines */
