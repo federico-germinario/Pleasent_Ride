@@ -40,8 +40,6 @@
 /* Private macro -------------------------------------------------------------*/
 /* USER CODE BEGIN PM */
 
-/* Single byte to store input */
-uint8_t byte;
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
@@ -50,8 +48,7 @@ TIM_HandleTypeDef htim2;
 UART_HandleTypeDef huart2;
 
 /* USER CODE BEGIN PV */
-char buffer[1000];
-int size_buffer = 0;
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -60,7 +57,7 @@ static void MX_GPIO_Init(void);
 static void MX_USART2_UART_Init(void);
 static void MX_TIM2_Init(void);
 /* USER CODE BEGIN PFP */
-int Wait_for(char * string);
+
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -99,67 +96,7 @@ int main(void)
   MX_USART2_UART_Init();
   MX_TIM2_Init();
   /* USER CODE BEGIN 2 */
-<<<<<<< HEAD
-  HAL_GPIO_WritePin(ESP_Reset_GPIO_Port, ESP_Reset_Pin, GPIO_PIN_SET);
-=======
-  RetargetInit(&huart2);
-  //printf("Init...\n\r");
 
-  HAL_UART_Receive_IT(&huart3, &byte, 1);
-
-   /////RST
-
-   //HAL_UART_Transmit(&huart3, (uint8_t*) ("AT+RST\r\n"), strlen("AT+RST\r\n"), 1000);
-   //HAL_Delay(5000);
-
-   HAL_UART_Transmit(&huart3, (uint8_t*) ("AT+RESTORE\r\n"), strlen("AT+RESTORE\r\n"), 1000);
-
-   //int w = Wait_for("AT+RESTORE");
-   printf("buf: %s\r\n", buffer);
-
-   //HAL_Delay(1000);
-
-
-   /////AT
-
-   HAL_UART_Transmit(&huart3, (uint8_t*) ("AT\r\n"), strlen("AT\r\n"), 1000);
-   HAL_Delay(5000);
-
-   /////CWMODE
-
-   HAL_UART_Transmit(&huart3, (uint8_t*) ("AT+CWMODE=1\r\n"), strlen("AT+CWMODE=1\r\n"), 1000);
-   HAL_Delay(5000);
-
-   ///CWJAP
-
-   char data[200];
-   memset(data, 0, sizeof(data));
-   sprintf (data, "AT+CWJAP=\"jackhuai\",\"laborra2\"\r\n");
-
-   HAL_UART_Transmit(&huart3, (uint8_t *) (data), sizeof(data), 1000);
-   HAL_Delay(5000);
-
-   ///CIPMUX
-   HAL_UART_Transmit(&huart3, (uint8_t*) ("AT+CIPMUX=0\r\n"), strlen("AT+CIPMUX=0\r\n"), 1000);
-
-
-   printf("Setup end\n\r");
-
-   HAL_Delay(5000);
-
-   memset(data, 0, sizeof(data));
-   HAL_UART_Transmit(&huart3, (uint8_t*) ("AT+CIPSTATUS\r\n"), strlen("AT+CIPSTATUS\r\r\n"), 1000);
-   HAL_UART_Receive(&huart3, (uint8_t *) data, sizeof(data), 1000);
-
-   char *ret;
-     ret = strstr(tmp, "literal");
-       if (ret)
-           printf("found substring at address %p\n", ret);
-       else
-           printf("no substring found!\n");
-
-  printf("%s\r\n", data);
->>>>>>> d5a4acc222ce8c6193bdd5c730be87b55e571254
   /* USER CODE END 2 */
 
   /* Infinite loop */
