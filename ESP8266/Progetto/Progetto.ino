@@ -25,8 +25,6 @@ int lastTemp;
 int lastHumidity;
 unsigned long lastSendTime = 0;
 
-//send every 30 seconds (rate limit by ThingSpeak, 15 seconds per field)
-const long sendInterval = 30 * 1000;
 
 void read_serial_packet();
 void send_to_thingsspeak();
@@ -52,7 +50,7 @@ void setup() {
   pinMode(LED_BUILTIN, OUTPUT);     // Initialize the LED_BUILTIN pin as an output
   pinMode(2, OUTPUT);
   digitalWrite(LED_BUILTIN, HIGH);  // Led spento
-  digitalWrite(2, LOW);
+  digitalWrite(2, HIGH);
   
   //wait at max 1 second for a string on the serial
   Serial.setTimeout(1000);
@@ -137,9 +135,9 @@ void connect_to_wifi(String ssid, String pass) {
     Serial.println("Succesfully Connected!!!");
     digitalWrite(LED_BUILTIN, LOW); // led acceso
     
-    digitalWrite(2, HIGH); 
-    delay(20); 
-    digitalWrite(2, LOW);         
+    digitalWrite(2, LOW); 
+    //delay(100); 
+    digitalWrite(2, HIGH);         
   }else{
     Serial.println("Turning the HotSpot On");
     //launchWeb();
@@ -148,13 +146,13 @@ void connect_to_wifi(String ssid, String pass) {
     Serial.println();
     Serial.println("Waiting...");
     while ((WiFi.status() != WL_CONNECTED)){
-      delay(100);
+      delay(20);
       server.handleClient();
     }
     digitalWrite(LED_BUILTIN, LOW);
-    digitalWrite(2, HIGH); 
-    delay(20); 
-    digitalWrite(2, LOW);  
+    digitalWrite(2, LOW); 
+    //delay(100); 
+    digitalWrite(2, HIGH);  
   }
 }
 

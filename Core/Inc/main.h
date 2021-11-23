@@ -61,8 +61,8 @@ void Error_Handler(void);
 #define ESP_Signal_Pin GPIO_PIN_1
 #define ESP_Signal_GPIO_Port GPIOC
 #define ESP_Signal_EXTI_IRQn EXTI1_IRQn
-#define ESP_Reset_Pin GPIO_PIN_11
-#define ESP_Reset_GPIO_Port GPIOD
+#define ESP_Reset_2_Pin GPIO_PIN_8
+#define ESP_Reset_2_GPIO_Port GPIOE
 /* USER CODE BEGIN Private defines */
 
 /* USER CODE END Private defines */

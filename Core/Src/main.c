@@ -46,9 +46,12 @@
 TIM_HandleTypeDef htim2;
 
 UART_HandleTypeDef huart2;
+UART_HandleTypeDef huart3;
 
 /* USER CODE BEGIN PV */
-
+uint8_t real_int = 1;
+uint8_t i = 0;
+uint8_t j = 0;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -56,12 +59,96 @@ void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_USART2_UART_Init(void);
 static void MX_TIM2_Init(void);
+static void MX_USART3_UART_Init(void);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+#if !defined(OS_USE_SEMIHOSTING)
+#include <errno.h>
+#include <sys/stat.h>
+#define STDIN_FILENO 0
+#define STDOUT_FILENO 1
+#define STDERR_FILENO 2
+
+UART_HandleTypeDef* gHuart;
+
+void  RetargetInit(UART_HandleTypeDef *huart){
+	gHuart=huart;
+
+	setvbuf(stdout, NULL, _IONBF, 0);
+}
+
+int _isatty(int fd){
+	if(fd>=STDIN_FILENO && fd<=STDERR_FILENO){
+		return 1;
+	}
+
+	errno = EBADF;
+	return 0;
+}
+
+int _write(int fd, char* ptr, int len) {
+	HAL_StatusTypeDef hstatus;
+
+	if (fd == STDOUT_FILENO || fd == STDERR_FILENO) {
+		hstatus = HAL_UART_Transmit(gHuart, (uint8_t *) ptr, len, HAL_MAX_DELAY);
+		if (hstatus == HAL_OK)
+			return len;
+		else
+			return EIO;
+	}
+	errno = EBADF;
+	return -1;
+}
+
+int _close(int fd) {
+	if (fd >= STDIN_FILENO && fd <= STDERR_FILENO)
+		return 0;
+
+	errno = EBADF;
+	return -1;
+}
+
+int _lseek(int fd, int ptr, int dir) {
+	(void) fd;
+	(void) ptr;
+	(void) dir;
+
+	errno = EBADF;
+	return -1;
+}
+
+int _read(int fd, char* ptr, int len) {
+	HAL_StatusTypeDef hstatus;
+
+	if (fd == STDIN_FILENO) {
+		hstatus = HAL_UART_Receive(gHuart, (uint8_t *) ptr, 1, HAL_MAX_DELAY);
+		if (hstatus == HAL_OK)
+			return 1;
+		else
+			return EIO;
+	}
+
+	errno = EBADF;
+	return -1;
+}
+
+int _fstat(int fd, struct stat* st) {
+	if (fd >= STDIN_FILENO && fd <= STDERR_FILENO) {
+		st->st_mode = S_IFCHR;
+		return 0;
+	}
+
+	errno = EBADF;
+	return 0;
+
+}
+
+#endif
+
 
 /* USER CODE END 0 */
 
@@ -95,12 +182,15 @@ int main(void)
   MX_GPIO_Init();
   MX_USART2_UART_Init();
   MX_TIM2_Init();
+  MX_USART3_UART_Init();
   /* USER CODE BEGIN 2 */
+  RetargetInit(&huart3);
 
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
+  //HAL_NVIC_EnableIRQ(EXTI1_IRQn);
   while (1){
     /* USER CODE END WHILE */
 
@@ -108,7 +198,6 @@ int main(void)
   }
   /* USER CODE END 3 */
 }
-
 
 /**
   * @brief System Clock Configuration
@@ -175,7 +264,7 @@ static void MX_TIM2_Init(void)
   htim2.Instance = TIM2;
   htim2.Init.Prescaler = 49999;
   htim2.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim2.Init.Period = 29999;
+  htim2.Init.Period = 14999;
   htim2.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim2.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
   if (HAL_TIM_Base_Init(&htim2) != HAL_OK)
@@ -233,6 +322,39 @@ static void MX_USART2_UART_Init(void)
 }
 
 /**
+  * @brief USART3 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_USART3_UART_Init(void)
+{
+
+  /* USER CODE BEGIN USART3_Init 0 */
+
+  /* USER CODE END USART3_Init 0 */
+
+  /* USER CODE BEGIN USART3_Init 1 */
+
+  /* USER CODE END USART3_Init 1 */
+  huart3.Instance = USART3;
+  huart3.Init.BaudRate = 115200;
+  huart3.Init.WordLength = UART_WORDLENGTH_8B;
+  huart3.Init.StopBits = UART_STOPBITS_1;
+  huart3.Init.Parity = UART_PARITY_NONE;
+  huart3.Init.Mode = UART_MODE_TX_RX;
+  huart3.Init.HwFlowCtl = UART_HWCONTROL_NONE;
+  huart3.Init.OverSampling = UART_OVERSAMPLING_16;
+  if (HAL_UART_Init(&huart3) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN USART3_Init 2 */
+
+  /* USER CODE END USART3_Init 2 */
+
+}
+
+/**
   * @brief GPIO Initialization Function
   * @param None
   * @retval None
@@ -244,26 +366,38 @@ static void MX_GPIO_Init(void)
   /* GPIO Ports Clock Enable */
   __HAL_RCC_GPIOC_CLK_ENABLE();
   __HAL_RCC_GPIOA_CLK_ENABLE();
+  __HAL_RCC_GPIOE_CLK_ENABLE();
+  __HAL_RCC_GPIOB_CLK_ENABLE();
   __HAL_RCC_GPIOD_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOD, ESP_Reset_Pin|GPIO_PIN_14, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(ESP_Reset_2_GPIO_Port, ESP_Reset_2_Pin, GPIO_PIN_SET);
+
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(GPIOD, GPIO_PIN_13|GPIO_PIN_14, GPIO_PIN_RESET);
 
   /*Configure GPIO pin : ESP_Signal_Pin */
   GPIO_InitStruct.Pin = ESP_Signal_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_FALLING;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(ESP_Signal_GPIO_Port, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : ESP_Reset_Pin PD14 */
-  GPIO_InitStruct.Pin = ESP_Reset_Pin|GPIO_PIN_14;
+  /*Configure GPIO pin : ESP_Reset_2_Pin */
+  GPIO_InitStruct.Pin = ESP_Reset_2_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(ESP_Reset_2_GPIO_Port, &GPIO_InitStruct);
+
+  /*Configure GPIO pins : PD13 PD14 */
+  GPIO_InitStruct.Pin = GPIO_PIN_13|GPIO_PIN_14;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOD, &GPIO_InitStruct);
 
   /* EXTI interrupt init*/
-  HAL_NVIC_SetPriority(EXTI1_IRQn, 0, 0);
+  HAL_NVIC_SetPriority(EXTI1_IRQn, 1, 0);
   HAL_NVIC_EnableIRQ(EXTI1_IRQn);
 
 }
@@ -271,13 +405,26 @@ static void MX_GPIO_Init(void)
 /* USER CODE BEGIN 4 */
 // Callback interrupt ESP8266
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin){
-	if(GPIO_Pin == ESP_Signal_Pin){
-		char line[10];
-		snprintf(line, sizeof(line), "45,86\n");
-		HAL_UART_Transmit(&huart2, (uint8_t*) (line), strlen(line), 1000);
-		HAL_TIM_Base_Start_IT(&htim2); //Timer 30 sec
-		HAL_GPIO_WritePin(GPIOD, GPIO_PIN_14, GPIO_PIN_SET);
-	}
+	//if (real_int){
+		__HAL_TIM_CLEAR_FLAG(&htim2, TIM_SR_UIF);
+		if(GPIO_Pin == ESP_Signal_Pin){
+			printf("REAL_ESP_SIGNAL! i=%d, j=%d\r\n", i, j);
+
+			real_int = 0;
+
+			char line[10];
+			snprintf(line, sizeof(line), "%d,%d\n", i, j);
+			i++;
+			j++;
+			HAL_UART_Transmit(&huart2, (uint8_t*) (line), strlen(line), 1000);
+
+			HAL_TIM_Base_Start_IT(&htim2); //Timer 30 sec
+			//HAL_NVIC_DisableIRQ(EXTI1_IRQn);
+		}
+	/*}else{
+		printf("FAKE_ESP_SIGNAL!\r\n");
+		real_int=1;
+	}*/
 }
 
 /* USER CODE END 4 */
@@ -294,11 +441,14 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
   /* USER CODE BEGIN Callback 0 */
 	if (htim->Instance == TIM2) {
-		HAL_GPIO_WritePin(GPIOD, GPIO_PIN_14, GPIO_PIN_RESET);
+		printf("TIMER SCADUTO! INVIO IL RESET ALL'ESP, i=%d, j=%d\r\n", i, j);
+		//HAL_NVIC_EnableIRQ(EXTI1_IRQn);
+
 		//Reset
-		HAL_GPIO_WritePin(ESP_Reset_GPIO_Port, ESP_Reset_Pin, GPIO_PIN_RESET);
+		HAL_GPIO_WritePin(ESP_Reset_2_GPIO_Port, ESP_Reset_2_Pin, GPIO_PIN_RESET);
 		HAL_Delay(20);
-		HAL_GPIO_WritePin(ESP_Reset_GPIO_Port, ESP_Reset_Pin, GPIO_PIN_SET);
+		HAL_GPIO_WritePin(ESP_Reset_2_GPIO_Port, ESP_Reset_2_Pin, GPIO_PIN_SET);
+
 	  }
 
   /* USER CODE END Callback 0 */
