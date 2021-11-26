@@ -50,29 +50,20 @@ void setup() {
   pinMode(LED_BUILTIN, OUTPUT);     // Initialize the LED_BUILTIN pin as an output
   pinMode(2, OUTPUT);
   digitalWrite(LED_BUILTIN, HIGH);  // Led spento
-  digitalWrite(2, HIGH);
+  digitalWrite(2, LOW);
   
   //wait at max 1 second for a string on the serial
   Serial.setTimeout(1000);
-  Serial.println("Firwmare start!");
-
-  Serial.println("Reading EEPROM ssid");
   String esid;
   for (int i = 0; i < 32; ++i){
     esid += char(EEPROM.read(i));
   }
-  Serial.println();
-  Serial.print("SSID: ");
-  Serial.println(esid);
+ 
 
-
-  Serial.println("Reading EEPROM pass");
   String epass = "";
   for (int i = 32; i < 96; ++i){
     epass += char(EEPROM.read(i));
   }
-  Serial.print("PASS: ");
-  Serial.println(epass);
 
   WiFi.mode(WIFI_STA);
 	ThingSpeak.begin(client); // Initialize ThingSpeak
@@ -89,17 +80,17 @@ void loop() {
 
 bool testWifi(void){
   int c = 0;
-  Serial.println("Waiting for Wifi to connect");
+  //Serial.println("Waiting for Wifi to connect");
   while ( c < 20 ) {
     if (WiFi.status() == WL_CONNECTED){
       return true;
     }
     delay(500);
-    Serial.print("*");
+    //Serial.print("*");
     c++;
   }
-  Serial.println("");
-  Serial.println("Connect timed out, opening AP");
+  //Serial.println("");
+  //Serial.println("Connect timed out, opening AP");
   return false;
 }
 
@@ -124,10 +115,9 @@ void read_serial_packet() {
   }
 
 }
-
 void connect_to_wifi(String ssid, String pass) {
-  Serial.print("Attempting to connect to SSID: ");
-  Serial.println(ssid);
+  //Serial.print("Attempting to connect to SSID: ");
+  //Serial.println(ssid);
     
   WiFi.begin(ssid, pass); // Connect to WPA/WPA2 network. Change this line if using open or WEP network
   delay(1000);
@@ -135,24 +125,24 @@ void connect_to_wifi(String ssid, String pass) {
     Serial.println("Succesfully Connected!!!");
     digitalWrite(LED_BUILTIN, LOW); // led acceso
     
-    digitalWrite(2, LOW); 
-    //delay(100); 
-    digitalWrite(2, HIGH);         
+    digitalWrite(2, HIGH); 
+    delay(50); 
+    digitalWrite(2, LOW);         
   }else{
-    Serial.println("Turning the HotSpot On");
+    //Serial.println("Turning the HotSpot On");
     //launchWeb();
     setupAP();// Setup HotSpot
     
-    Serial.println();
-    Serial.println("Waiting...");
+    //Serial.println();
+    //Serial.println("Waiting...");
     while ((WiFi.status() != WL_CONNECTED)){
       delay(20);
       server.handleClient();
     }
     digitalWrite(LED_BUILTIN, LOW);
-    digitalWrite(2, LOW); 
-    //delay(100); 
-    digitalWrite(2, HIGH);  
+    digitalWrite(2, HIGH); 
+    delay(50); 
+    digitalWrite(2, LOW);  
   }
 }
 
@@ -178,7 +168,7 @@ void setupAP(void){
   int n = WiFi.scanNetworks();
   //Serial.println("scan done");
   if (n == 0)
-    Serial.println("no networks found");
+    //Serial.println("no networks found");
   /*else
   {
     Serial.print(n);
@@ -248,24 +238,25 @@ void createWebServer(){
         for (int i = 0; i < 96; ++i) {
           EEPROM.write(i, 0);
         }
-        Serial.println(qsid);
+       /* Serial.println(qsid);
         Serial.println("");
         Serial.println(qpass);
         Serial.println("");
 
         Serial.println("writing eeprom ssid:");
+        */
         for (int i = 0; i < qsid.length(); ++i)
         {
           EEPROM.write(i, qsid[i]);
-          Serial.print("Wrote: ");
-          Serial.println(qsid[i]);
+          //Serial.print("Wrote: ");
+          //Serial.println(qsid[i]);
         }
         Serial.println("writing eeprom pass:");
         for (int i = 0; i < qpass.length(); ++i)
         {
           EEPROM.write(32 + i, qpass[i]);
-          Serial.print("Wrote: ");
-          Serial.println(qpass[i]);
+         // Serial.print("Wrote: ");
+          //Serial.println(qpass[i]);
         }
         EEPROM.commit();
 
@@ -291,11 +282,11 @@ void send_to_thingsspeak() {
   //send update via HTTPS REST call
   int x = ThingSpeak.writeFields(myChannelNumber, myWriteAPIKey);
   if (x == 200) {
-    Serial.println("Channel update successful.");
+    //Serial.println("Channel update successful.");
   } else {
-    Serial.println(
-        "Problem updating channel. HTTP error code " + String(x));
+    //Serial.println(
+//        "Problem updating channel. HTTP error code " + String(x));
   }
-  Serial.println("I'm awake, but I'm going into deep sleep mode until RESET pin is connected to a LOW signal");
+ // Serial.println("I'm awake, but I'm going into deep sleep mode until RESET pin is connected to a LOW signal");
   ESP.deepSleep(0); 
 }

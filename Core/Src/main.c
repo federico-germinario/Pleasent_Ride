@@ -185,8 +185,9 @@ int main(void)
   MX_USART3_UART_Init();
   /* USER CODE BEGIN 2 */
   RetargetInit(&huart3);
-
+  HAL_PWR_EnableSleepOnExit();
   /* USER CODE END 2 */
+
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
@@ -405,7 +406,7 @@ static void MX_GPIO_Init(void)
 /* USER CODE BEGIN 4 */
 // Callback interrupt ESP8266
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin){
-	//if (real_int){
+
 		__HAL_TIM_CLEAR_FLAG(&htim2, TIM_SR_UIF);
 		if(GPIO_Pin == ESP_Signal_Pin){
 			printf("REAL_ESP_SIGNAL! i=%d, j=%d\r\n", i, j);
@@ -420,11 +421,7 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin){
 
 			HAL_TIM_Base_Start_IT(&htim2); //Timer 30 sec
 			//HAL_NVIC_DisableIRQ(EXTI1_IRQn);
-		}
-	/*}else{
-		printf("FAKE_ESP_SIGNAL!\r\n");
-		real_int=1;
-	}*/
+	  }
 }
 
 /* USER CODE END 4 */
@@ -442,13 +439,13 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
   /* USER CODE BEGIN Callback 0 */
 	if (htim->Instance == TIM2) {
 		printf("TIMER SCADUTO! INVIO IL RESET ALL'ESP, i=%d, j=%d\r\n", i, j);
-		//HAL_NVIC_EnableIRQ(EXTI1_IRQn);
 
 		//Reset
 		HAL_GPIO_WritePin(ESP_Reset_2_GPIO_Port, ESP_Reset_2_Pin, GPIO_PIN_RESET);
-		HAL_Delay(20);
+		HAL_Delay(10);
 		HAL_GPIO_WritePin(ESP_Reset_2_GPIO_Port, ESP_Reset_2_Pin, GPIO_PIN_SET);
-
+		//HAL_Delay(3000); //START ALTRO TIMER (NELLA CALLBACK ATTIVO L'INTERRUPT)
+		//HAL_NVIC_EnableIRQ(EXTI1_IRQn);
 	  }
 
   /* USER CODE END Callback 0 */
