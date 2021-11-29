@@ -300,12 +300,6 @@ int main(void)
   //HAL_NVIC_EnableIRQ(EXTI1_IRQn);
   while (1){
     /* USER CODE END WHILE */
-	  /*
-	  MPU6050_Read_Accel();
-	  MPU6050_Read_Gyro();
-	  print_MPU6050();
-	  HAL_Delay(1000);
-	  */
 
     /* USER CODE BEGIN 3 */
   }

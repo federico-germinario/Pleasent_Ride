@@ -63,6 +63,10 @@ void Error_Handler(void);
 #define ESP_Signal_EXTI_IRQn EXTI1_IRQn
 #define ESP_Reset_2_Pin GPIO_PIN_8
 #define ESP_Reset_2_GPIO_Port GPIOE
+#define MPU6050_I2C1_SCL_Pin GPIO_PIN_6
+#define MPU6050_I2C1_SCL_GPIO_Port GPIOB
+#define MPU6050_I2C1_SDA_Pin GPIO_PIN_7
+#define MPU6050_I2C1_SDA_GPIO_Port GPIOB
 /* USER CODE BEGIN Private defines */
 
 /* USER CODE END Private defines */
