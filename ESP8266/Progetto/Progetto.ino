@@ -23,8 +23,6 @@ String currentLine;
 
 int lastTemp;
 int lastHumidity;
-unsigned long lastSendTime = 0;
-
 
 void read_serial_packet();
 void send_to_thingsspeak();
@@ -35,38 +33,31 @@ void setupAP();
 void createWebServer();
 
 void setup() {
-  //debug serial (TX) and data receive serial (RX)
-  //when programming the ESP8266, remove the connection
-  //from the STM32 to the ESP8266's RX pin!
-  //can also be handled with .swap() so that RX and TX pins
-  //get swapped to 2 different pins, but this way we can't
-  //get the debug output from a NodeMCU
   Serial.begin(115200);
   WiFi.disconnect();
-  EEPROM.begin(512); //Initialasing EEPROM
+  EEPROM.begin(512); //Inizializzazione EEPROM
   delay(10);
 
+  pinMode(LED_BUILTIN, OUTPUT);     // Inizializzazione LED_BUILTIN come pinout
+  pinMode(2, OUTPUT);               // Inizializzazione GPIO2 come pinout
 
-  pinMode(LED_BUILTIN, OUTPUT);     // Initialize the LED_BUILTIN pin as an output
-  pinMode(2, OUTPUT);
   digitalWrite(LED_BUILTIN, HIGH);  // Led spento
-  digitalWrite(2, LOW);
+  digitalWrite(2, LOW);            
   
-  //wait at max 1 second for a string on the serial
-  Serial.setTimeout(1000);
+  Serial.setTimeout(1000); // Aspetto max 1 sec una stringa sulla seriale
+  
   String esid;
   for (int i = 0; i < 32; ++i){
     esid += char(EEPROM.read(i));
   }
  
-
   String epass = "";
   for (int i = 32; i < 96; ++i){
     epass += char(EEPROM.read(i));
   }
 
   WiFi.mode(WIFI_STA);
-	ThingSpeak.begin(client); // Initialize ThingSpeak
+	ThingSpeak.begin(client); // Inizializzazione ThingSpeak
   connect_to_wifi(esid.c_str(), epass.c_str());
 }
 
@@ -80,17 +71,15 @@ void loop() {
 
 bool testWifi(void){
   int c = 0;
-  //Serial.println("Waiting for Wifi to connect");
+  //Aspetto di connettermi al WiFi
   while ( c < 20 ) {
     if (WiFi.status() == WL_CONNECTED){
       return true;
     }
     delay(500);
-    //Serial.print("*");
     c++;
   }
-  //Serial.println("");
-  //Serial.println("Connect timed out, opening AP");
+  //Connessione fallita
   return false;
 }
 
@@ -99,15 +88,10 @@ void read_serial_packet() {
     data_available = true;
     currentLine = Serial.readStringUntil('\n');
 
-    //Serial.println("GOT LINE");
-    //Serial.println(currentLine);
-
     int commaSplitIndex = currentLine.indexOf(',');
     if (commaSplitIndex > 0) {
       String tempStr = currentLine.substring(0, commaSplitIndex);
       String humString = currentLine.substring(commaSplitIndex + 1);
-
-      //Serial.println("[Update] Temp: " + tempStr + " Hum: " + humString);
 
       lastTemp = tempStr.toInt();
       lastHumidity = humString.toInt();
@@ -115,50 +99,36 @@ void read_serial_packet() {
   }
 
 }
-void connect_to_wifi(String ssid, String pass) {
-  //Serial.print("Attempting to connect to SSID: ");
-  //Serial.println(ssid);
-    
-  WiFi.begin(ssid, pass); // Connect to WPA/WPA2 network. Change this line if using open or WEP network
+
+void connect_to_wifi(String ssid, String pass) {  
+  WiFi.begin(ssid, pass); // Connessione alla rete WiFi
   delay(1000);
   if (testWifi()){
-    Serial.println("Succesfully Connected!!!");
-    digitalWrite(LED_BUILTIN, LOW); // led acceso
+    digitalWrite(LED_BUILTIN, LOW); // Accendi led 
     
-    digitalWrite(2, HIGH); 
+    digitalWrite(2, HIGH); // Invia un segnale alto su GPIO2 per 50 ms
     delay(50); 
     digitalWrite(2, LOW);         
   }else{
-    //Serial.println("Turning the HotSpot On");
-    //launchWeb();
-    setupAP();// Setup HotSpot
+    // La connessione alla rete WiFi è fallitta
+    // Accensione Hotspot WiFi
+    setupAP();
     
-    //Serial.println();
-    //Serial.println("Waiting...");
     while ((WiFi.status() != WL_CONNECTED)){
       delay(20);
       server.handleClient();
     }
-    digitalWrite(LED_BUILTIN, LOW);
-    digitalWrite(2, HIGH); 
+
+    digitalWrite(LED_BUILTIN, LOW); // Accendi led 
+    digitalWrite(2, HIGH);          // Invia un segnale alto su GPIO2 per 50 ms
     delay(50); 
     digitalWrite(2, LOW);  
   }
 }
 
 void launchWeb(){
- /* Serial.println("");
-  if (WiFi.status() == WL_CONNECTED)
-    Serial.println("WiFi connected");
-  Serial.print("Local IP: ");
-  Serial.println(WiFi.localIP());
-  Serial.print("SoftAP IP: ");
-  Serial.println(WiFi.softAPIP());
-  */
   createWebServer();
-  // Start the server
-  server.begin();
-  //Serial.println("Server started");
+  server.begin(); // Start server
 }
 
 void setupAP(void){
@@ -166,31 +136,9 @@ void setupAP(void){
   WiFi.disconnect();
   delay(100);
   int n = WiFi.scanNetworks();
-  //Serial.println("scan done");
-  if (n == 0)
-    //Serial.println("no networks found");
-  /*else
-  {
-    Serial.print(n);
-    Serial.println(" networks found");
-    for (int i = 0; i < n; ++i)
-    {
-      // Print SSID and RSSI for each network found
-      Serial.print(i + 1);
-      Serial.print(": ");
-      Serial.print(WiFi.SSID(i));
-      Serial.print(" (");
-      Serial.print(WiFi.RSSI(i));
-      Serial.print(")");
-      Serial.println((WiFi.encryptionType(i) == ENC_TYPE_NONE) ? " " : "*");
-      delay(10);
-    }
-  }
-  Serial.println("");
-  */
   st = "<ol>";
   for (int i = 0; i < n; ++i){
-    // Print SSID and RSSI for each network found
+    // Stampa gli ssid per ogni WiFi trovato 
     st += "<li>";
     st += WiFi.SSID(i);
     st += " (";
@@ -203,9 +151,7 @@ void setupAP(void){
   st += "</ol>";
   delay(100);
   WiFi.softAP("ESP8266", "");
-  //Serial.println("Initializing_softap_for_wifi credentials_modification");
   launchWeb();
-  //Serial.println("over");
 }
 
 void createWebServer(){
@@ -234,43 +180,33 @@ void createWebServer(){
       String qsid = server.arg("ssid");
       String qpass = server.arg("pass");
       if (qsid.length() > 0 && qpass.length() > 0) {
-        //Serial.println("clearing eeprom");
+        // Pulizia EEPROM
         for (int i = 0; i < 96; ++i) {
           EEPROM.write(i, 0);
         }
-       /* Serial.println(qsid);
-        Serial.println("");
-        Serial.println(qpass);
-        Serial.println("");
 
-        Serial.println("writing eeprom ssid:");
-        */
-        for (int i = 0; i < qsid.length(); ++i)
-        {
+        // Scrittura ssid su eeprom
+        for (int i = 0; i < qsid.length(); ++i){
           EEPROM.write(i, qsid[i]);
-          //Serial.print("Wrote: ");
-          //Serial.println(qsid[i]);
         }
-        Serial.println("writing eeprom pass:");
-        for (int i = 0; i < qpass.length(); ++i)
-        {
-          EEPROM.write(32 + i, qpass[i]);
-         // Serial.print("Wrote: ");
-          //Serial.println(qpass[i]);
-        }
-        EEPROM.commit();
 
+        // Scrittura password su eeprom
+        for (int i = 0; i < qpass.length(); ++i){
+          EEPROM.write(32 + i, qpass[i]);
+        }
+
+        EEPROM.commit();
         content = "{\"Success\":\"saved to eeprom... reset to boot into new wifi\"}";
         statusCode = 200;
         ESP.reset();
-      } else {
+      }else {
         content = "{\"Error\":\"404 not found\"}";
         statusCode = 404;
         Serial.println("Sending 404");
       }
+
       server.sendHeader("Access-Control-Allow-Origin", "*");
       server.send(statusCode, "application/json", content);
-
     });
   }}
 
