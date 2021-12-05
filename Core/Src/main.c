@@ -35,6 +35,7 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
+#define MQ_DATA_LENGTH 8
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -43,9 +44,12 @@
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
+ADC_HandleTypeDef hadc1;
+
 I2C_HandleTypeDef hi2c1;
 
 TIM_HandleTypeDef htim2;
+TIM_HandleTypeDef htim3;
 
 UART_HandleTypeDef huart2;
 UART_HandleTypeDef huart3;
@@ -53,9 +57,13 @@ UART_HandleTypeDef huart3;
 /* USER CODE BEGIN PV */
 uint8_t real_int = 1;
 uint8_t i = 0;
-uint8_t j = 0;
 float Ax, Ay, Az, Gx, Gy, Gz = 0.0;
 float Accel_X_RAW, Accel_Y_RAW, Accel_Z_RAW, Gyro_X_RAW, Gyro_Y_RAW, Gyro_Z_RAW = 0.0;
+
+//sensor data structures
+uint8_t mq_index;
+float mq_data[MQ_DATA_LENGTH];
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -65,8 +73,10 @@ static void MX_USART2_UART_Init(void);
 static void MX_TIM2_Init(void);
 static void MX_USART3_UART_Init(void);
 static void MX_I2C1_Init(void);
+static void MX_ADC1_Init(void);
+static void MX_TIM3_Init(void);
 /* USER CODE BEGIN PFP */
-
+float float_sum(float* collection, uint8_t index);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -259,7 +269,8 @@ void print_MPU6050(){
 int main(void)
 {
   /* USER CODE BEGIN 1 */
-
+  memset(mq_data, 0, MQ_DATA_LENGTH*sizeof(float));
+  mq_index = 0;
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -284,6 +295,8 @@ int main(void)
   MX_TIM2_Init();
   MX_USART3_UART_Init();
   MX_I2C1_Init();
+  MX_ADC1_Init();
+  MX_TIM3_Init();
   /* USER CODE BEGIN 2 */
   RetargetInit(&huart3);
   //HAL_PWR_EnableSleepOnExit();
@@ -292,6 +305,10 @@ int main(void)
   HAL_Delay(1000);
   printf("MPU6050_Init\r\n");
   */
+
+  printf("start tim3\r\n");
+  HAL_TIM_Base_Start(&htim3);
+  HAL_ADC_Start_IT(&hadc1);
 
   /* USER CODE END 2 */
 
@@ -348,6 +365,56 @@ void SystemClock_Config(void)
   {
     Error_Handler();
   }
+}
+
+/**
+  * @brief ADC1 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_ADC1_Init(void)
+{
+
+  /* USER CODE BEGIN ADC1_Init 0 */
+
+  /* USER CODE END ADC1_Init 0 */
+
+  ADC_ChannelConfTypeDef sConfig = {0};
+
+  /* USER CODE BEGIN ADC1_Init 1 */
+
+  /* USER CODE END ADC1_Init 1 */
+  /** Configure the global features of the ADC (Clock, Resolution, Data Alignment and number of conversion)
+  */
+  hadc1.Instance = ADC1;
+  hadc1.Init.ClockPrescaler = ADC_CLOCK_SYNC_PCLK_DIV2;
+  hadc1.Init.Resolution = ADC_RESOLUTION_12B;
+  hadc1.Init.ScanConvMode = DISABLE;
+  hadc1.Init.ContinuousConvMode = DISABLE;
+  hadc1.Init.DiscontinuousConvMode = DISABLE;
+  hadc1.Init.ExternalTrigConvEdge = ADC_EXTERNALTRIGCONVEDGE_RISING;
+  hadc1.Init.ExternalTrigConv = ADC_EXTERNALTRIGCONV_T3_TRGO;
+  hadc1.Init.DataAlign = ADC_DATAALIGN_RIGHT;
+  hadc1.Init.NbrOfConversion = 1;
+  hadc1.Init.DMAContinuousRequests = DISABLE;
+  hadc1.Init.EOCSelection = ADC_EOC_SINGLE_CONV;
+  if (HAL_ADC_Init(&hadc1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /** Configure for the selected ADC regular channel its corresponding rank in the sequencer and its sample time.
+  */
+  sConfig.Channel = ADC_CHANNEL_0;
+  sConfig.Rank = 1;
+  sConfig.SamplingTime = ADC_SAMPLETIME_480CYCLES;
+  if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN ADC1_Init 2 */
+
+  /* USER CODE END ADC1_Init 2 */
+
 }
 
 /**
@@ -426,6 +493,51 @@ static void MX_TIM2_Init(void)
   /* USER CODE BEGIN TIM2_Init 2 */
 
   /* USER CODE END TIM2_Init 2 */
+
+}
+
+/**
+  * @brief TIM3 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_TIM3_Init(void)
+{
+
+  /* USER CODE BEGIN TIM3_Init 0 */
+
+  /* USER CODE END TIM3_Init 0 */
+
+  TIM_ClockConfigTypeDef sClockSourceConfig = {0};
+  TIM_MasterConfigTypeDef sMasterConfig = {0};
+
+  /* USER CODE BEGIN TIM3_Init 1 */
+
+  /* USER CODE END TIM3_Init 1 */
+  htim3.Instance = TIM3;
+  htim3.Init.Prescaler = 49999;
+  htim3.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim3.Init.Period = 2499;
+  htim3.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+  htim3.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  if (HAL_TIM_Base_Init(&htim3) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
+  if (HAL_TIM_ConfigClockSource(&htim3, &sClockSourceConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_UPDATE;
+  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+  if (HAL_TIMEx_MasterConfigSynchronization(&htim3, &sMasterConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN TIM3_Init 2 */
+
+  /* USER CODE END TIM3_Init 2 */
 
 }
 
@@ -549,19 +661,39 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin){
 
 		__HAL_TIM_CLEAR_FLAG(&htim2, TIM_SR_UIF);
 		if(GPIO_Pin == ESP_Signal_Pin){
-			printf("REAL_ESP_SIGNAL! i=%d, j=%d\r\n", i, j);
+			float mq_mean = float_sum(mq_data, mq_index)/mq_index;
+			printf("ESP_SIGNAL! mq_mean = %f\r\n", mq_mean);
 
-			real_int = 0;
-
-			char line[10];
-			snprintf(line, sizeof(line), "%d,%d\n", i, j);
+			char line[15];
+			snprintf(line, sizeof(line), "%d,%f\n", i, mq_mean);
 			i++;
-			j++;
 			HAL_UART_Transmit(&huart2, (uint8_t*) (line), strlen(line), 1000);
 
 			HAL_TIM_Base_Start_IT(&htim2); //Timer 30 sec
 			//HAL_NVIC_DisableIRQ(EXTI1_IRQn);
 	  }
+}
+
+void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef*hadc){
+
+	uint16_t rawValue; float ppm;
+
+	rawValue = HAL_ADC_GetValue(hadc);
+
+	ppm = ((float)rawValue) / 1023 * 4660;
+	ppm = ((ppm - 300.0) / 5) + 400;
+	printf("rawValue : %hu\r\n", rawValue);
+	printf("Temperature : %f\r\n", ppm);
+	mq_data[mq_index] = ppm;
+	mq_index = (mq_index + 1) % MQ_DATA_LENGTH;
+}
+
+float float_sum(float* collection, uint8_t index) {
+	float sum = 0.0;
+	for(int i=0; i<index; i++){
+		sum += collection[i];
+	}
+	return sum;
 }
 
 /* USER CODE END 4 */
@@ -578,7 +710,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
   /* USER CODE BEGIN Callback 0 */
 	if (htim->Instance == TIM2) {
-		printf("TIMER SCADUTO! INVIO IL RESET ALL'ESP, i=%d, j=%d\r\n", i, j);
+		printf("TIMER SCADUTO! INVIO IL RESET ALL'ESP, i=%d\r\n", i);
 
 		//Reset
 		HAL_GPIO_WritePin(ESP_Reset_2_GPIO_Port, ESP_Reset_2_Pin, GPIO_PIN_RESET);
