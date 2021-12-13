@@ -60,10 +60,20 @@ uint8_t i = 0;
 float Ax, Ay, Az, Gx, Gy, Gz = 0.0;
 float Accel_X_RAW, Accel_Y_RAW, Accel_Z_RAW, Gyro_X_RAW, Gyro_Y_RAW, Gyro_Z_RAW = 0.0;
 
+uint8_t flag = 0;
 //sensor data structures
 uint8_t mq_index;
 float mq_data[MQ_DATA_LENGTH];
 
+
+typedef struct {
+	float longitude;
+	float latitude;
+}Coordinate;
+
+Coordinate fake_gps[13];
+
+uint8_t g = 0;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -255,9 +265,56 @@ void print_MPU6050(){
 	printf("Gz = %.2f g\r\n", Gz);
 	printf("\r\n");
 	printf("\r\n");
+}
+
+void fake_gps_init(){
+
+	fake_gps[0].longitude = 9.232127873367;
+	fake_gps[0].latitude = 45.476947477674;
+
+	fake_gps[1].longitude = 9.23132169559556;
+	fake_gps[1].latitude = 45.4769356338021;
+
+	fake_gps[2].longitude = 9.23027839341514;
+	fake_gps[2].latitude = 45.4769302429461;
+
+	fake_gps[3].longitude = 9.22848735956641;
+	fake_gps[3].latitude = 45.4768485383483;
+
+	fake_gps[4].longitude = 9.22811674289873;
+	fake_gps[4].latitude = 45.4767904670821;
+
+	fake_gps[5].longitude = 9.22542983923211;
+    fake_gps[5].latitude = 45.4767755259172;
+
+    fake_gps[6].longitude = 9.22554076080336;
+    fake_gps[6].latitude = 45.477625700989;
+
+    fake_gps[7].longitude = 9.22552155468664;
+    fake_gps[7].latitude = 45.4788784152841;
+
+    fake_gps[8].longitude = 9.22652317861608;
+    fake_gps[8].latitude = 45.4792292326394;
+
+    fake_gps[9].longitude = 9.22803205121175;
+    fake_gps[9].latitude = 45.4791161835439;
+
+    fake_gps[10].longitude = 9.22938409789064;
+    fake_gps[10].latitude = 45.4790173241089;
+
+    fake_gps[11].longitude = 9.22994266430211;
+    fake_gps[11].latitude = 45.4782498335493;
+
+    fake_gps[12].longitude = 9.22997546730472;
+    fake_gps[12].latitude = 45.4788991756912;
 
 }
 
+Coordinate get_coordinate(){
+	Coordinate c = fake_gps[g];
+	g = (g + 1) % 13;
+	return c;
+}
 
 
 /* USER CODE END 0 */
@@ -299,16 +356,16 @@ int main(void)
   MX_TIM3_Init();
   /* USER CODE BEGIN 2 */
   RetargetInit(&huart3);
-  //HAL_PWR_EnableSleepOnExit();
+  fake_gps_init();
+  HAL_PWR_EnableSleepOnExit();
 
-  /*MPU6050_Init();
-  HAL_Delay(1000);
-  printf("MPU6050_Init\r\n");
-  */
+ // MPU6050_Init();
+  //HAL_Delay(2000);
+  //printf("MPU6050_Init\r\n");
 
-  printf("start tim3\r\n");
-  HAL_TIM_Base_Start(&htim3);
-  HAL_ADC_Start_IT(&hadc1);
+  //printf("start tim3\r\n");
+  //HAL_TIM_Base_Start(&htim3);
+  //HAL_ADC_Start_IT(&hadc1);
 
   /* USER CODE END 2 */
 
@@ -316,6 +373,11 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   //HAL_NVIC_EnableIRQ(EXTI1_IRQn);
   while (1){
+	  /*MPU6050_Read_Accel();
+	  	 MPU6050_Read_Gyro();
+	  	  print_MPU6050();
+	  	  HAL_Delay(500);
+	  	  */
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -621,13 +683,9 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOA_CLK_ENABLE();
   __HAL_RCC_GPIOE_CLK_ENABLE();
   __HAL_RCC_GPIOB_CLK_ENABLE();
-  __HAL_RCC_GPIOD_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(ESP_Reset_2_GPIO_Port, ESP_Reset_2_Pin, GPIO_PIN_SET);
-
-  /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOD, GPIO_PIN_13|GPIO_PIN_14, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(ESP_Reset_GPIO_Port, ESP_Reset_Pin, GPIO_PIN_SET);
 
   /*Configure GPIO pin : ESP_Signal_Pin */
   GPIO_InitStruct.Pin = ESP_Signal_Pin;
@@ -635,19 +693,12 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(ESP_Signal_GPIO_Port, &GPIO_InitStruct);
 
-  /*Configure GPIO pin : ESP_Reset_2_Pin */
-  GPIO_InitStruct.Pin = ESP_Reset_2_Pin;
+  /*Configure GPIO pin : ESP_Reset_Pin */
+  GPIO_InitStruct.Pin = ESP_Reset_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(ESP_Reset_2_GPIO_Port, &GPIO_InitStruct);
-
-  /*Configure GPIO pins : PD13 PD14 */
-  GPIO_InitStruct.Pin = GPIO_PIN_13|GPIO_PIN_14;
-  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(GPIOD, &GPIO_InitStruct);
+  HAL_GPIO_Init(ESP_Reset_GPIO_Port, &GPIO_InitStruct);
 
   /* EXTI interrupt init*/
   HAL_NVIC_SetPriority(EXTI1_IRQn, 1, 0);
@@ -658,20 +709,33 @@ static void MX_GPIO_Init(void)
 /* USER CODE BEGIN 4 */
 // Callback interrupt ESP8266
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin){
-
+		HAL_NVIC_DisableIRQ(EXTI1_IRQn);
 		__HAL_TIM_CLEAR_FLAG(&htim2, TIM_SR_UIF);
-		if(GPIO_Pin == ESP_Signal_Pin){
-			float mq_mean = float_sum(mq_data, mq_index)/mq_index;
-			printf("ESP_SIGNAL! mq_mean = %f\r\n", mq_mean);
+		if(flag){
+			if(GPIO_Pin == ESP_Signal_Pin){
+				float mq_mean = float_sum(mq_data, mq_index)/mq_index;
+				Coordinate c = get_coordinate();
+				printf("ESP_SIGNAL! i=%d, longitude=%f, latitude=%f, mq_mean = %f\r\n\n", i, c.longitude, c.latitude, mq_mean);
 
-			char line[15];
-			snprintf(line, sizeof(line), "%d,%f\n", i, mq_mean);
-			i++;
-			HAL_UART_Transmit(&huart2, (uint8_t*) (line), strlen(line), 1000);
+				char line[50];
+				//snprintf(line, sizeof(line), "%d,%f\n", i, mq_mean);
 
-			HAL_TIM_Base_Start_IT(&htim2); //Timer 30 sec
-			//HAL_NVIC_DisableIRQ(EXTI1_IRQn);
-	  }
+				snprintf(line, sizeof(line), "%d,%f,%f\n", i, c.longitude, c.latitude);
+				i++;
+				HAL_UART_Transmit(&huart2, (uint8_t*) (line), strlen(line), 1000);
+
+				HAL_TIM_Base_Start_IT(&htim2); //Timer 30 sec
+				flag=0;
+		  }
+		}else{
+			HAL_Delay(200);
+			flag = 1;
+		}
+
+		__HAL_GPIO_EXTI_CLEAR_IT(EXTI1_IRQn);
+		HAL_NVIC_ClearPendingIRQ(EXTI1_IRQn);
+
+		HAL_NVIC_EnableIRQ(EXTI1_IRQn);
 }
 
 void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef*hadc){
@@ -710,15 +774,14 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
   /* USER CODE BEGIN Callback 0 */
 	if (htim->Instance == TIM2) {
-		printf("TIMER SCADUTO! INVIO IL RESET ALL'ESP, i=%d\r\n", i);
+		printf("TIMER SCADUTO! INVIO IL RESET ALL'ESP!\r\n");
+		flag = 0;
 
 		//Reset
-		HAL_GPIO_WritePin(ESP_Reset_2_GPIO_Port, ESP_Reset_2_Pin, GPIO_PIN_RESET);
+		HAL_GPIO_WritePin(ESP_Reset_GPIO_Port, ESP_Reset_Pin, GPIO_PIN_RESET);
 		HAL_Delay(20);
-		HAL_GPIO_WritePin(ESP_Reset_2_GPIO_Port, ESP_Reset_2_Pin, GPIO_PIN_SET);
-		//HAL_Delay(3000); //START ALTRO TIMER (NELLA CALLBACK ATTIVO L'INTERRUPT)
-		//HAL_NVIC_EnableIRQ(EXTI1_IRQn);
-	  }
+		HAL_GPIO_WritePin(ESP_Reset_GPIO_Port, ESP_Reset_Pin, GPIO_PIN_SET);
+	}
 
   /* USER CODE END Callback 0 */
   if (htim->Instance == TIM1) {

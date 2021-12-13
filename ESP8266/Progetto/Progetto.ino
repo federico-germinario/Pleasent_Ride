@@ -22,7 +22,8 @@ const char * myWriteAPIKey = APIKEY;
 String currentLine;
 
 int lastTemp;
-int lastHumidity;
+float lastLongitude;
+float lastLatitude;
 
 void read_serial_packet();
 void send_to_thingsspeak();
@@ -42,7 +43,7 @@ void setup() {
   pinMode(2, OUTPUT);               // Inizializzazione GPIO2 come pinout
 
   digitalWrite(LED_BUILTIN, HIGH);  // Led spento
-  digitalWrite(2, LOW);            
+  digitalWrite(2, LOW);         
   
   Serial.setTimeout(1000); // Aspetto max 1 sec una stringa sulla seriale
   
@@ -91,10 +92,14 @@ void read_serial_packet() {
     int commaSplitIndex = currentLine.indexOf(',');
     if (commaSplitIndex > 0) {
       String tempStr = currentLine.substring(0, commaSplitIndex);
-      String humString = currentLine.substring(commaSplitIndex + 1);
+      currentLine = currentLine.substring(commaSplitIndex + 1);
+      commaSplitIndex = currentLine.indexOf(',');
+      String longitudeStr = currentLine.substring(0, commaSplitIndex);
+      String latitudeStr = currentLine.substring(commaSplitIndex + 1);
 
       lastTemp = tempStr.toInt();
-      lastHumidity = humString.toInt();
+      lastLongitude = longitudeStr.toFloat();
+      lastLatitude = latitudeStr.toFloat();
     }
   }
 
@@ -212,17 +217,17 @@ void createWebServer(){
 
 
 void send_to_thingsspeak() {
-  //update field 1 (temperature) and 2 (humidity)
+   //Notes: To record latitude, longitude and elevation of a write, call setField() for each of the fields you want to write. Then setLatitude(), setLongitude(), setElevation() and then call writeFields()
+       
   ThingSpeak.setField(1, lastTemp);
-  ThingSpeak.setField(2, lastHumidity);
+  ThingSpeak.setField(2, lastLongitude);
+  ThingSpeak.setField(3, lastLatitude);
+  ThingSpeak.setField(4, lastTemp);
+  
   //send update via HTTPS REST call
   int x = ThingSpeak.writeFields(myChannelNumber, myWriteAPIKey);
   if (x == 200) {
-    //Serial.println("Channel update successful.");
   } else {
-    //Serial.println(
-//        "Problem updating channel. HTTP error code " + String(x));
   }
- // Serial.println("I'm awake, but I'm going into deep sleep mode until RESET pin is connected to a LOW signal");
   ESP.deepSleep(0); 
 }
