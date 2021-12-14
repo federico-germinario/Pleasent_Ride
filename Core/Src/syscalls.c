@@ -31,9 +31,11 @@
 #include <sys/time.h>
 #include <sys/times.h>
 #include "main.h"
+#include "retarget_uart.h"
 
-#define STDOUT 1
-#define STDERR 2
+#define STDIN_FILENO 0
+#define STDOUT_FILENO 1
+#define STDERR_FILENO 2
 
 
 /* Variables */
@@ -46,6 +48,19 @@ char **environ = __env;
 
 
 /* Functions */
+
+
+UART_HandleTypeDef* gHuart;
+
+void  RetargetInit(UART_HandleTypeDef *huart){
+	gHuart=huart;
+
+	/* Disabilito il buffer I/O per lo STDOUT per
+	  far visualizzare immediatamente i caratteri
+	  sul terminale*/
+	setvbuf(stdout, NULL, _IONBF, 0);
+}
+
 void initialise_monitor_handles()
 {
 }
@@ -79,7 +94,7 @@ __attribute__((weak)) int _read(int file, char *ptr, int len)
 return len;
 }
 
-__attribute__((weak)) int _write(int file, char *ptr, int len)
+/*__attribute__((weak)) int _write(int file, char *ptr, int len)
 {
 	int DataIdx;
 
@@ -88,9 +103,24 @@ __attribute__((weak)) int _write(int file, char *ptr, int len)
 		__io_putchar(*ptr++);
 	}
 	return len;
+}*/
+
+//Ridefinisco la funzione _write per far stampare i caratteri tramite l'interfaccia UART
+__attribute__((weak)) int _write(int fd, char *ptr, int len){
+	HAL_StatusTypeDef hstatus;
+
+		if (fd == STDOUT_FILENO || fd == STDERR_FILENO) {
+			hstatus = HAL_UART_Transmit(gHuart, (uint8_t *) ptr, len, HAL_MAX_DELAY);
+			if (hstatus == HAL_OK)
+				return len;
+			else
+				return EIO;
+		}
+		errno = EBADF;
+		return -1;
 }
 
-/*
+
 int _close(int file)
 {
 	return -1;
@@ -111,7 +141,7 @@ int _isatty(int file)
 int _lseek(int file, int ptr, int dir)
 {
 	return 0;
-}*/
+}
 
 int _open(char *path, int flags, ...)
 {
