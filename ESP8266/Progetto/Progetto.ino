@@ -24,6 +24,7 @@ String currentLine;
 int lastTemp;
 float lastLongitude;
 float lastLatitude;
+float lastPpm;
 
 void read_serial_packet();
 void send_to_thingsspeak();
@@ -95,11 +96,15 @@ void read_serial_packet() {
       currentLine = currentLine.substring(commaSplitIndex + 1);
       commaSplitIndex = currentLine.indexOf(',');
       String longitudeStr = currentLine.substring(0, commaSplitIndex);
-      String latitudeStr = currentLine.substring(commaSplitIndex + 1);
+      currentLine = currentLine.substring(commaSplitIndex + 1);
+      commaSplitIndex = currentLine.indexOf(',');
+      String latitudeStr = currentLine.substring(0, commaSplitIndex);
+      String ppmStr = currentLine.substring(commaSplitIndex + 1);
 
       lastTemp = tempStr.toInt();
       lastLongitude = longitudeStr.toFloat();
       lastLatitude = latitudeStr.toFloat();
+      lastPpm = ppmStr.toFloat();
     }
   }
 
@@ -217,17 +222,12 @@ void createWebServer(){
 
 
 void send_to_thingsspeak() {
-   //Notes: To record latitude, longitude and elevation of a write, call setField() for each of the fields you want to write. Then setLatitude(), setLongitude(), setElevation() and then call writeFields()
-       
   ThingSpeak.setField(1, lastTemp);
   ThingSpeak.setField(2, lastLongitude);
   ThingSpeak.setField(3, lastLatitude);
-  ThingSpeak.setField(4, lastTemp);
+  ThingSpeak.setField(4, lastPpm);
   
   //send update via HTTPS REST call
   int x = ThingSpeak.writeFields(myChannelNumber, myWriteAPIKey);
-  if (x == 200) {
-  } else {
-  }
   ESP.deepSleep(0); 
 }

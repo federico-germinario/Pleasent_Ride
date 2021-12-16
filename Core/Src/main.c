@@ -66,7 +66,6 @@ uint8_t flag = 0;
 uint8_t mq_index;
 float mq_data[MQ_DATA_LENGTH];
 
-
 typedef struct {
 	float longitude;
 	float latitude;
@@ -95,6 +94,7 @@ float float_sum(float* collection, uint8_t index);
 /* USER CODE BEGIN 0 */
 #include <errno.h>
 #include <sys/stat.h>
+#include "retarget_uart.h"
 
 #define MPU6050_ADDR 0xD0
 #define WHO_AM_I_REG 0x75
@@ -277,15 +277,15 @@ int main(void)
   /* USER CODE BEGIN 2 */
   RetargetInit(&huart3);
   fake_gps_init();
-  HAL_PWR_EnableSleepOnExit();
+  //HAL_PWR_EnableSleepOnExit();
 
   //MPU6050_Init();
   //HAL_Delay(2000);
   //printf("MPU6050_Init\r\n");
 
-  //printf("start tim3\r\n");
-  //HAL_TIM_Base_Start(&htim3);
-  //HAL_ADC_Start_IT(&hadc1);
+  printf("start tim3\r\n");
+  HAL_TIM_Base_Start(&htim3);
+  HAL_ADC_Start_IT(&hadc1);
 
   /* USER CODE END 2 */
 
@@ -637,10 +637,10 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin){
 				Coordinate c = get_coordinate();
 				printf("ESP_SIGNAL! i=%d, longitude=%f, latitude=%f, mq_mean = %f\r\n\n", i, c.longitude, c.latitude, mq_mean);
 
-				char line[50];
+				char line[60];
 				//snprintf(line, sizeof(line), "%d,%f\n", i, mq_mean);
 
-				snprintf(line, sizeof(line), "%d,%f,%f\n", i, c.longitude, c.latitude);
+				snprintf(line, sizeof(line), "%d,%f,%f,%f\n", i, c.longitude, c.latitude, mq_mean);
 				i++;
 				HAL_UART_Transmit(&huart2, (uint8_t*) (line), strlen(line), 1000);
 
@@ -660,14 +660,15 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin){
 
 void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef*hadc){
 
-	uint16_t rawValue; float ppm;
+	uint16_t rawValue; float ppm; float v;
 
 	rawValue = HAL_ADC_GetValue(hadc);
 
-	ppm = ((float)rawValue) / 1023 * 4660;
-	ppm = ((ppm - 300.0) / 5) + 400;
-	printf("rawValue : %hu\r\n", rawValue);
-	printf("Temperature : %f\r\n", ppm);
+	v = ((float)rawValue) / 4095 * 4660;
+	ppm = ((v - 320.0) / 0.65) + 400;
+	printf("rawValue: %hu\r\n", rawValue);
+	printf("v: %f\r\n", v);
+	printf("PPM: %f\r\n", ppm);
 	mq_data[mq_index] = ppm;
 	mq_index = (mq_index + 1) % MQ_DATA_LENGTH;
 }
