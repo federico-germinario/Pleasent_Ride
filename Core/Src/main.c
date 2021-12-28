@@ -25,7 +25,7 @@
 #include "string.h"
 #include <stdio.h>
 #include <stdlib.h>
-
+#include "math.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -36,6 +36,8 @@
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
 #define MQ_DATA_LENGTH 8
+#define BASE_THRESHOLD 1.0
+#define SLIDING_WINDOWS 7
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -47,16 +49,18 @@
 ADC_HandleTypeDef hadc1;
 
 I2C_HandleTypeDef hi2c1;
+DMA_HandleTypeDef hdma_i2c1_rx;
 
 TIM_HandleTypeDef htim2;
 TIM_HandleTypeDef htim3;
+TIM_HandleTypeDef htim4;
 
 UART_HandleTypeDef huart2;
 UART_HandleTypeDef huart3;
 
 /* USER CODE BEGIN PV */
-uint8_t real_int = 1;
-uint8_t i = 0;
+uint8_t real_int = 1;	//////SERVE A?
+uint8_t i = 0;			///// SERVE A? CAMBIO NOME?
 float Ax, Ay, Az, Gx, Gy, Gz = 0.0;
 float Accel_X_RAW, Accel_Y_RAW, Accel_Z_RAW, Gyro_X_RAW, Gyro_Y_RAW, Gyro_Z_RAW = 0.0;
 
@@ -73,7 +77,28 @@ typedef struct {
 
 Coordinate fake_gps[13];
 
-uint8_t g = 0;
+uint8_t g = 0;			///// SERVE A? CAMBIO NOME?
+
+////// MPU Variables
+
+uint8_t mpu_data[1024];
+uint16_t mpu_index = 0;
+uint8_t fall_detected = 0;
+
+// calibration offsets
+float offset_gyroX = 6.725720;
+float offset_gyroY = 8.554494;
+float offset_gyroZ = 5.479887;
+
+float offset_accelX = 0.889819;
+float offset_accelY = 0.694547;
+float offset_accelZ = 1 - 0.260066;
+
+uint8_t check_fall=0;
+uint8_t check_fall_counter=0;
+uint16_t bad_quality_road_counter = 0;
+
+////// END MPU Variables
 
 /* USER CODE END PV */
 
@@ -85,7 +110,9 @@ static void MX_TIM2_Init(void);
 static void MX_USART3_UART_Init(void);
 static void MX_I2C1_Init(void);
 static void MX_ADC1_Init(void);
+static void MX_DMA_Init(void);
 static void MX_TIM3_Init(void);
+static void MX_TIM4_Init(void);
 /* USER CODE BEGIN PFP */
 float float_sum(float* collection, uint8_t index);
 /* USER CODE END PFP */
@@ -105,22 +132,34 @@ float float_sum(float* collection, uint8_t index);
 #define ACCEL_XOUT_H_REG 0x3B
 #define GYRO_XOUT_H_REG 0x43
 
+#define FIFO_EN_REG 0x23
+#define FIFO_R_W 0x74
+#define USER_CTRL 0x6A
+#define INT_ENABLE 0x38
+#define CONFIG_REG 0x1A
+#define FIFO_COUNTH 0x72
+
 void MPU6050_Init(){
-	uint8_t reg, Data;
+	uint8_t check, Data;
 
 	// Verifico se il device è pronto
-	HAL_I2C_Mem_Read(&hi2c1, MPU6050_ADDR, WHO_AM_I_REG, 1, &reg, 1, 1000);
-	if(reg == 104){ // Se il device è pronto
+	while(check != 104){
+		printf("no\r\n");
+		HAL_I2C_Mem_Read(&hi2c1, MPU6050_ADDR, WHO_AM_I_REG, 1, &check, 1, 1000);
+	}
+	if(check == 104){ // Se il device è pronto
 
 		// Scriviamo nel registro 0X6B tutti zeri per svegliare il sensore
 		Data = 0;
 		HAL_I2C_Mem_Write(&hi2c1, MPU6050_ADDR, PWR_MGMT_1_REG, 1, &Data, 1, 1000);
 
+		// Mettiamo Gyro fs a 1KHz
+		Data = 0x02;
+		HAL_I2C_Mem_Write(&hi2c1, MPU6050_ADDR, CONFIG_REG, 1, &Data, 1, 1000);
 
-		// DATA RATE = Gyroscope Output Rate (8 Khz) / (1 + SMPLRT_DIV (7)) ==> 1 Khz
-		Data = 0x07;
+		// DATA RATE = Gyroscope Output Rate (1 Khz) / (1 + SMPLRT_DIV (99)) ==> 10 Hz
+		Data = 0x63;
 		HAL_I2C_Mem_Write(&hi2c1, MPU6050_ADDR, SMPLRT_DIV_REG, 1, &Data, 1, 1000);
-
 
 		// Configurazione accellerometro:
 		// XA_ST = 0, YA_ST = 0, ZA_ST = 0, FS_SEL = 0 ==> Full Scale Range = +- 2g
@@ -131,6 +170,18 @@ void MPU6050_Init(){
 		// XG_ST = 0, YG_ST = 0, ZG_ST = 0, FS_SEL = 0 ==> Full Scale Range = +- 250 */s
 		Data = 0x00;
 		HAL_I2C_Mem_Write(&hi2c1, MPU6050_ADDR, GYRO_CONFIG_REG, 1, &Data, 1, 1000);
+
+		// Abilitiamo scrittura buffer per accel e gyro
+		Data = 0x78;
+		HAL_I2C_Mem_Write(&hi2c1, MPU6050_ADDR, FIFO_EN_REG, 1, &Data, 1, 1000);
+
+		// Abilitiamo il buffer
+		Data = 0x44;
+		HAL_I2C_Mem_Write(&hi2c1, MPU6050_ADDR, USER_CTRL, 1, &Data, 1, 1000);
+
+		// Abilitiamo interrupt a dati letti
+		Data = 0x01;
+		HAL_I2C_Mem_Write(&hi2c1, MPU6050_ADDR, INT_ENABLE, 1, &Data, 1, 1000);
 	}
 }
 
@@ -273,13 +324,16 @@ int main(void)
   MX_USART3_UART_Init();
   MX_I2C1_Init();
   MX_ADC1_Init();
+  MX_DMA_Init();
   MX_TIM3_Init();
+  MX_TIM4_Init();
   /* USER CODE BEGIN 2 */
   RetargetInit(&huart3);
   fake_gps_init();
   //HAL_PWR_EnableSleepOnExit();
 
-  //MPU6050_Init();
+  MPU6050_Init();
+  HAL_DMA_Init(&hdma_i2c1_rx);
   //HAL_Delay(2000);
   //printf("MPU6050_Init\r\n");
 
@@ -524,6 +578,51 @@ static void MX_TIM3_Init(void)
 }
 
 /**
+  * @brief TIM4 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_TIM4_Init(void)
+{
+
+  /* USER CODE BEGIN TIM4_Init 0 */
+
+  /* USER CODE END TIM4_Init 0 */
+
+  TIM_ClockConfigTypeDef sClockSourceConfig = {0};
+  TIM_MasterConfigTypeDef sMasterConfig = {0};
+
+  /* USER CODE BEGIN TIM4_Init 1 */
+
+  /* USER CODE END TIM4_Init 1 */
+  htim4.Instance = TIM4;
+  htim4.Init.Prescaler = 49999;
+  htim4.Init.CounterMode = TIM_COUNTERMODE_DOWN;
+  htim4.Init.Period = 3999;
+  htim4.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+  htim4.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  if (HAL_TIM_Base_Init(&htim4) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
+  if (HAL_TIM_ConfigClockSource(&htim4, &sClockSourceConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
+  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+  if (HAL_TIMEx_MasterConfigSynchronization(&htim4, &sMasterConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN TIM4_Init 2 */
+
+  /* USER CODE END TIM4_Init 2 */
+
+}
+
+/**
   * @brief USART2 Initialization Function
   * @param None
   * @retval None
@@ -590,6 +689,22 @@ static void MX_USART3_UART_Init(void)
 }
 
 /**
+  * Enable DMA controller clock
+  */
+static void MX_DMA_Init(void)
+{
+
+  /* DMA controller clock enable */
+  __HAL_RCC_DMA1_CLK_ENABLE();
+
+  /* DMA interrupt init */
+  /* DMA1_Stream0_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(DMA1_Stream0_IRQn, 1, 0);
+  HAL_NVIC_EnableIRQ(DMA1_Stream0_IRQn);
+
+}
+
+/**
   * @brief GPIO Initialization Function
   * @param None
   * @retval None
@@ -603,6 +718,7 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOA_CLK_ENABLE();
   __HAL_RCC_GPIOE_CLK_ENABLE();
   __HAL_RCC_GPIOB_CLK_ENABLE();
+  __HAL_RCC_GPIOD_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(ESP_Reset_GPIO_Port, ESP_Reset_Pin, GPIO_PIN_SET);
@@ -620,42 +736,62 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(ESP_Reset_GPIO_Port, &GPIO_InitStruct);
 
+  /*Configure GPIO pin : MPU_DATA_RDY_Pin */
+  GPIO_InitStruct.Pin = MPU_DATA_RDY_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  HAL_GPIO_Init(MPU_DATA_RDY_GPIO_Port, &GPIO_InitStruct);
+
   /* EXTI interrupt init*/
   HAL_NVIC_SetPriority(EXTI1_IRQn, 1, 0);
   HAL_NVIC_EnableIRQ(EXTI1_IRQn);
+
+  HAL_NVIC_SetPriority(EXTI15_10_IRQn, 2, 0);
+  HAL_NVIC_EnableIRQ(EXTI15_10_IRQn);
 
 }
 
 /* USER CODE BEGIN 4 */
 // Callback interrupt ESP8266
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin){
+	if(GPIO_Pin == ESP_Signal_Pin){
 		HAL_NVIC_DisableIRQ(EXTI1_IRQn);
 		__HAL_TIM_CLEAR_FLAG(&htim2, TIM_SR_UIF);
 		if(flag){
-			if(GPIO_Pin == ESP_Signal_Pin){
-				float mq_mean = float_sum(mq_data, mq_index)/mq_index;
-				Coordinate c = get_coordinate();
-				printf("ESP_SIGNAL! i=%d, longitude=%f, latitude=%f, mq_mean = %f\r\n\n", i, c.longitude, c.latitude, mq_mean);
+			uint16_t road_quality = bad_quality_road_counter;
+			bad_quality_road_counter = 0;
+			float mq_mean = float_sum(mq_data, mq_index)/mq_index;
+			Coordinate c = get_coordinate();
+			printf("ESP_SIGNAL! i=%d, longitude=%f, latitude=%f, mq_mean = %f, road_quality = %d\r\n\n", i, c.longitude, c.latitude, mq_mean, road_quality);
 
-				char line[60];
-				//snprintf(line, sizeof(line), "%d,%f\n", i, mq_mean);
+			char line[60];
+			//snprintf(line, sizeof(line), "%d,%f\n", i, mq_mean);
 
-				snprintf(line, sizeof(line), "%d,%f,%f,%f\n", i, c.longitude, c.latitude, mq_mean);
-				i++;
-				HAL_UART_Transmit(&huart2, (uint8_t*) (line), strlen(line), 1000);
+			snprintf(line, sizeof(line), "%d,%f,%f,%f,%d\n", i, c.longitude, c.latitude, mq_mean, road_quality);
+			i++;
+			HAL_UART_Transmit(&huart2, (uint8_t*) (line), strlen(line), 1000);
 
-				HAL_TIM_Base_Start_IT(&htim2); //Timer 30 sec
-				flag=0;
-		  }
+			HAL_TIM_Base_Start_IT(&htim2); //Timer 30 sec
+			flag=0;
 		}else{
 			HAL_Delay(200);
 			flag = 1;
 		}
 
+		///// TESTARE CHE VADA BENE CON LE NUOVE AGGIUNTE  //////
 		__HAL_GPIO_EXTI_CLEAR_IT(EXTI1_IRQn);
 		HAL_NVIC_ClearPendingIRQ(EXTI1_IRQn);
 
 		HAL_NVIC_EnableIRQ(EXTI1_IRQn);
+	}
+
+	if(GPIO_Pin == MPU_DATA_RDY_Pin){
+		//Avvio timer periodico per lettura mpu
+		printf("EXTI 11 Interrupt\r\n");
+		__HAL_TIM_CLEAR_FLAG(&htim4, TIM_SR_UIF);
+		HAL_TIM_Base_Start_IT(&htim4);
+		HAL_NVIC_DisableIRQ(EXTI15_10_IRQn);
+	}
 }
 
 void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef*hadc){
@@ -681,6 +817,101 @@ float float_sum(float* collection, uint8_t index) {
 	return sum;
 }
 
+void fall_counter_increment(float gyro_value){
+	if(check_fall){
+		check_fall_counter++;
+		if(check_fall_counter>20){
+			if(gyro_value>30.0){
+				check_fall_counter=check_fall=0;
+			}
+		}
+	}
+}
+
+void HAL_I2C_MasterRxCpltCallback(I2C_HandleTypeDef* hi2c){
+	if(fall_detected){
+		fall_detected=0;
+	}
+
+	/// Riattivo scrittura buffer
+
+	uint8_t Data = 0x78;
+	HAL_I2C_Mem_Write(&hi2c1, MPU6050_ADDR, FIFO_EN_REG, 1, &Data, 1, 1000);
+	Data = 0x44;
+	HAL_I2C_Mem_Write(&hi2c1, MPU6050_ADDR, USER_CTRL, 1, &Data, 1, 1000);
+
+	float means[SLIDING_WINDOWS];
+	float temp_sums[SLIDING_WINDOWS*2];
+	float accel_vectors[mpu_index/12], gyro_vectors[mpu_index/12];
+	uint16_t accel_vector_index=0, gyro_vector_index = 0;
+	float accel_sum = 0;
+	uint8_t sum_counter = 0, sum_index=0;
+	printf("receive dma callback, mpu index: %d\r\n", mpu_index);
+	for(int i=0; i<mpu_index; i+=12){
+		Accel_X_RAW = (int16_t)(mpu_data[i] << 8 | mpu_data[i+1]);
+		Accel_Y_RAW = (int16_t)(mpu_data[i+2] << 8 | mpu_data[i+3]);
+		Accel_Z_RAW = (int16_t)(mpu_data[i+4] << 8 | mpu_data[i+5]);
+
+
+		Ax = Accel_X_RAW/16384.0 + offset_accelX;  // get the float g
+		Ay = Accel_Y_RAW/16384.0 + offset_accelY;
+		Az = Accel_Z_RAW/16384.0 + offset_accelZ;
+
+		float raw_amp = sqrt(pow(Ax, 2)+pow(Ay, 2)+pow(Az, 2));
+		accel_vectors[accel_vector_index++] = raw_amp;
+		accel_sum = accel_sum + raw_amp;
+		sum_counter++;
+		if (sum_counter == 10){
+			temp_sums[sum_index++] = accel_sum;
+			sum_counter = 0;
+			accel_sum = 0;
+		}
+
+		Gyro_X_RAW = (int16_t)(mpu_data[i+6] << 8 | mpu_data[i+6+1]);
+		Gyro_Y_RAW = (int16_t)(mpu_data[i+6+2] << 8 | mpu_data[i+6+3]);
+		Gyro_Z_RAW = (int16_t)(mpu_data[i+6+4] << 8 | mpu_data[i+6+5]);
+
+		Gx = Gyro_X_RAW/131.0 + offset_gyroX;
+		Gy = Gyro_Y_RAW/131.0 + offset_gyroY;
+		Gz = Gyro_Z_RAW/131.0 + offset_gyroZ;
+
+		float gyro_vector = sqrt(pow(Gx, 2)+pow(Gy, 2)+pow(Gz, 2));
+		gyro_vectors[gyro_vector_index++] = gyro_vector;
+
+		printf("burst #%d: Accelerazione lineare asse x: %f g, y: %f g, z: %f g\r\n", i/12, Ax, Ay, Az);
+		printf("Gyro asse x: %f °/s, y: %f °/s, z: %f °/s \tgyro_vector: %f\r\n", Gx, Gy, Gz, gyro_vector);
+	}
+
+	for(int i=0; i<SLIDING_WINDOWS; i++){
+		means[i]=(temp_sums[i]+temp_sums[i+1])/20;
+	}
+
+	for (int i = 0; i < 7; ++i) {
+		for(int j=0; j<20; j++){
+			if(j<10 && i<6){
+				fall_counter_increment(gyro_vectors[10*i+j]);
+			}
+			if(i==6){
+				fall_counter_increment(gyro_vectors[10*i+j]);
+			}
+			if(check_fall_counter > 60) {
+				fall_detected=1;
+				check_fall_counter=check_fall=0;
+			}
+			float threshold = BASE_THRESHOLD - gyro_vectors[10*i+j]/250.0;
+			float difference = abs(accel_vectors[10*i+j] - means[i]);
+			if(difference > threshold) {
+				printf("punto brutto alla misurazione nr. %d\r\n", 10*i+j);
+				bad_quality_road_counter++;
+				check_fall=1;
+			}
+		}
+	}
+
+	printf("calcolati  %d   punti brutti\n\r", bad_quality_road_counter);
+	printf("fall_detected: %d\r\n", fall_detected);
+
+}
 /* USER CODE END 4 */
 
 /**
@@ -702,6 +933,31 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 		HAL_GPIO_WritePin(ESP_Reset_GPIO_Port, ESP_Reset_Pin, GPIO_PIN_RESET);
 		HAL_Delay(20);
 		HAL_GPIO_WritePin(ESP_Reset_GPIO_Port, ESP_Reset_Pin, GPIO_PIN_SET);
+	}
+
+	if(htim->Instance == TIM4) {
+		printf("tim4 callback\r\n");
+
+		uint8_t countArr[2];
+		uint16_t count=0;
+
+		uint8_t Data = 0x0;
+
+		HAL_I2C_Mem_Write(&hi2c1, MPU6050_ADDR, FIFO_EN_REG, 1, &Data, 1, 1000);
+		HAL_I2C_Mem_Read(&hi2c1, MPU6050_ADDR, FIFO_COUNTH, 1, countArr, 2, 1000);
+		count = (uint16_t) (countArr[0] << 8 | countArr[1]);
+		printf("fifo count: %d\r\n", count);
+
+		if(count > 0 && count <= 1024) {
+			mpu_index = count;
+
+			Data = FIFO_R_W;
+			HAL_I2C_Master_Transmit(&hi2c1, MPU6050_ADDR, &Data, 1, 1000);
+			HAL_I2C_Master_Receive_DMA(&hi2c1, MPU6050_ADDR, &mpu_data[0], count);
+		}
+		else {
+			MPU6050_Init();
+		}
 	}
 
   /* USER CODE END Callback 0 */
