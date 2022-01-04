@@ -25,6 +25,8 @@ int lastTemp;
 float lastLongitude;
 float lastLatitude;
 float lastPpm;
+int lastRoadQuality;
+int lastFallDetected;
 
 void read_serial_packet();
 void send_to_thingsspeak();
@@ -99,12 +101,20 @@ void read_serial_packet() {
       currentLine = currentLine.substring(commaSplitIndex + 1);
       commaSplitIndex = currentLine.indexOf(',');
       String latitudeStr = currentLine.substring(0, commaSplitIndex);
-      String ppmStr = currentLine.substring(commaSplitIndex + 1);
+      currentLine = currentLine.substring(commaSplitIndex + 1);
+      commaSplitIndex = currentLine.indexOf(',');
+      String ppmStr = currentLine.substring(0, commaSplitIndex);
+      currentLine = currentLine.substring(commaSplitIndex + 1);
+      commaSplitIndex = currentLine.indexOf(',');
+      String roadQualityStr = currentLine.substring(0, commaSplitIndex);
+      String fallDetectedStr = currentLine.substring(commaSplitIndex + 1);
 
       lastTemp = tempStr.toInt();
       lastLongitude = longitudeStr.toFloat();
       lastLatitude = latitudeStr.toFloat();
       lastPpm = ppmStr.toFloat();
+      lastRoadQuality = roadQualityStr.toInt();
+      lastFallDetected = fallDetectedStr.toInt();
     }
   }
 
@@ -226,6 +236,8 @@ void send_to_thingsspeak() {
   ThingSpeak.setField(2, lastLongitude);
   ThingSpeak.setField(3, lastLatitude);
   ThingSpeak.setField(4, lastPpm);
+  ThingSpeak.setField(5, lastRoadQuality);
+  ThingSpeak.setField(6, lastFallDetected);
   
   //send update via HTTPS REST call
   int x = ThingSpeak.writeFields(myChannelNumber, myWriteAPIKey);

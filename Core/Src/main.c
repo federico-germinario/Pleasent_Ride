@@ -85,6 +85,7 @@ uint8_t mpu_data[1024];
 uint16_t mpu_index = 0;
 uint8_t fall_detected = 0;
 
+
 // calibration offsets
 float offset_gyroX = 6.725720;
 float offset_gyroY = 8.554494;
@@ -762,12 +763,19 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin){
 			bad_quality_road_counter = 0;
 			float mq_mean = float_sum(mq_data, mq_index)/mq_index;
 			Coordinate c = get_coordinate();
-			printf("ESP_SIGNAL! i=%d, longitude=%f, latitude=%f, mq_mean = %f, road_quality = %d\r\n\n", i, c.longitude, c.latitude, mq_mean, road_quality);
+
+
+			printf("ESP_SIGNAL! i=%d, longitude=%f, latitude=%f, mq_mean = %f, road_quality = %d, fall_detected = %d\r\n\n", i, c.longitude, c.latitude, mq_mean, road_quality, fall_detected);
 
 			char line[60];
 			//snprintf(line, sizeof(line), "%d,%f\n", i, mq_mean);
 
-			snprintf(line, sizeof(line), "%d,%f,%f,%f,%d\n", i, c.longitude, c.latitude, mq_mean, road_quality);
+			snprintf(line, sizeof(line), "%d,%f,%f,%f,%d,%d\n", i, c.longitude, c.latitude, mq_mean, road_quality, fall_detected);
+
+			if(fall_detected){
+				fall_detected=0;
+			}
+
 			i++;
 			HAL_UART_Transmit(&huart2, (uint8_t*) (line), strlen(line), 1000);
 
@@ -778,7 +786,7 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin){
 			flag = 1;
 		}
 
-		///// TESTARE CHE VADA BENE CON LE NUOVE AGGIUNTE  //////
+		///// TESTARE CHE VADA BENE CON LE NUOVE AGGIUNTE! SEMBRA CHE FUNZIONA BENE!!  //////
 		__HAL_GPIO_EXTI_CLEAR_IT(EXTI1_IRQn);
 		HAL_NVIC_ClearPendingIRQ(EXTI1_IRQn);
 
@@ -829,9 +837,9 @@ void fall_counter_increment(float gyro_value){
 }
 
 void HAL_I2C_MasterRxCpltCallback(I2C_HandleTypeDef* hi2c){
-	if(fall_detected){
+	/*if(fall_detected){
 		fall_detected=0;
-	}
+	}*/
 
 	/// Riattivo scrittura buffer
 
