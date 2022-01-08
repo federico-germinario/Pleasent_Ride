@@ -331,7 +331,6 @@ int main(void)
   /* USER CODE BEGIN 2 */
   RetargetInit(&huart3);
   fake_gps_init();
-  //HAL_PWR_EnableSleepOnExit();
 
   MPU6050_Init();
   HAL_DMA_Init(&hdma_i2c1_rx);
@@ -342,6 +341,8 @@ int main(void)
   HAL_TIM_Base_Start(&htim3);
   HAL_ADC_Start_IT(&hadc1);
 
+  HAL_PWR_EnableSleepOnExit();
+  HAL_PWR_EnterSLEEPMode(PWR_MAINREGULATOR_ON, PWR_SLEEPENTRY_WFI);
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -753,6 +754,56 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
+
+
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
+{
+  /* USER CODE BEGIN Callback 0 */
+	if (htim->Instance == TIM2) {
+		printf("TIMER SCADUTO! INVIO IL RESET ALL'ESP!\r\n");
+		flag = 0;
+
+		//Reset
+		HAL_GPIO_WritePin(ESP_Reset_GPIO_Port, ESP_Reset_Pin, GPIO_PIN_RESET);
+		HAL_Delay(20);
+		HAL_GPIO_WritePin(ESP_Reset_GPIO_Port, ESP_Reset_Pin, GPIO_PIN_SET);
+	}
+
+	if(htim->Instance == TIM4) {
+		printf("tim4 callback\r\n");
+
+		uint8_t countArr[2];
+		uint16_t count=0;
+
+		uint8_t Data = 0x0;
+
+		HAL_I2C_Mem_Write(&hi2c1, MPU6050_ADDR, FIFO_EN_REG, 1, &Data, 1, 1000);
+		HAL_I2C_Mem_Read(&hi2c1, MPU6050_ADDR, FIFO_COUNTH, 1, countArr, 2, 1000);
+		count = (uint16_t) (countArr[0] << 8 | countArr[1]);
+		printf("fifo count: %d\r\n", count);
+
+		if(count > 0 && count <= 1024) {
+			mpu_index = count;
+
+			Data = FIFO_R_W;
+			HAL_I2C_Master_Transmit(&hi2c1, MPU6050_ADDR, &Data, 1, 1000);
+			HAL_I2C_Master_Receive_DMA(&hi2c1, MPU6050_ADDR, &mpu_data[0], count);
+		}
+		else {
+			MPU6050_Init();
+		}
+	}
+
+  /* USER CODE END Callback 0 */
+
+  /* USER CODE BEGIN Callback 1 */
+
+  /* USER CODE END Callback 1 */
+}
+
+
+
+
 // Callback interrupt ESP8266
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin){
 	if(GPIO_Pin == ESP_Signal_Pin){
@@ -921,61 +972,6 @@ void HAL_I2C_MasterRxCpltCallback(I2C_HandleTypeDef* hi2c){
 
 }
 /* USER CODE END 4 */
-
-/**
-  * @brief  Period elapsed callback in non blocking mode
-  * @note   This function is called  when TIM1 interrupt took place, inside
-  * HAL_TIM_IRQHandler(). It makes a direct call to HAL_IncTick() to increment
-  * a global variable "uwTick" used as application time base.
-  * @param  htim : TIM handle
-  * @retval None
-  */
-void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
-{
-  /* USER CODE BEGIN Callback 0 */
-	if (htim->Instance == TIM2) {
-		printf("TIMER SCADUTO! INVIO IL RESET ALL'ESP!\r\n");
-		flag = 0;
-
-		//Reset
-		HAL_GPIO_WritePin(ESP_Reset_GPIO_Port, ESP_Reset_Pin, GPIO_PIN_RESET);
-		HAL_Delay(20);
-		HAL_GPIO_WritePin(ESP_Reset_GPIO_Port, ESP_Reset_Pin, GPIO_PIN_SET);
-	}
-
-	if(htim->Instance == TIM4) {
-		printf("tim4 callback\r\n");
-
-		uint8_t countArr[2];
-		uint16_t count=0;
-
-		uint8_t Data = 0x0;
-
-		HAL_I2C_Mem_Write(&hi2c1, MPU6050_ADDR, FIFO_EN_REG, 1, &Data, 1, 1000);
-		HAL_I2C_Mem_Read(&hi2c1, MPU6050_ADDR, FIFO_COUNTH, 1, countArr, 2, 1000);
-		count = (uint16_t) (countArr[0] << 8 | countArr[1]);
-		printf("fifo count: %d\r\n", count);
-
-		if(count > 0 && count <= 1024) {
-			mpu_index = count;
-
-			Data = FIFO_R_W;
-			HAL_I2C_Master_Transmit(&hi2c1, MPU6050_ADDR, &Data, 1, 1000);
-			HAL_I2C_Master_Receive_DMA(&hi2c1, MPU6050_ADDR, &mpu_data[0], count);
-		}
-		else {
-			MPU6050_Init();
-		}
-	}
-
-  /* USER CODE END Callback 0 */
-  if (htim->Instance == TIM1) {
-    HAL_IncTick();
-  }
-  /* USER CODE BEGIN Callback 1 */
-
-  /* USER CODE END Callback 1 */
-}
 
 /**
   * @brief  This function is executed in case of error occurrence.
