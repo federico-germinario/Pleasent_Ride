@@ -59,7 +59,6 @@ UART_HandleTypeDef huart2;
 UART_HandleTypeDef huart3;
 
 /* USER CODE BEGIN PV */
-uint8_t real_int = 1;	//////SERVE A?
 uint8_t i = 0;			///// SERVE A? CAMBIO NOME?
 float Ax, Ay, Az, Gx, Gy, Gz = 0.0;
 float Accel_X_RAW, Accel_Y_RAW, Accel_Z_RAW, Gyro_X_RAW, Gyro_Y_RAW, Gyro_Z_RAW = 0.0;
@@ -77,7 +76,7 @@ typedef struct {
 
 Coordinate fake_gps[13];
 
-uint8_t g = 0;			///// SERVE A? CAMBIO NOME?
+uint8_t g = 0;
 
 ////// MPU Variables
 
@@ -279,7 +278,6 @@ void fake_gps_init(){
 
     fake_gps[12].longitude = 9.22997546730472;
     fake_gps[12].latitude = 45.4788991756912;
-
 }
 
 Coordinate get_coordinate(){
@@ -334,26 +332,24 @@ int main(void)
 
   MPU6050_Init();
   HAL_DMA_Init(&hdma_i2c1_rx);
-  //HAL_Delay(2000);
-  //printf("MPU6050_Init\r\n");
 
   printf("start tim3\r\n");
   HAL_TIM_Base_Start(&htim3);
   HAL_ADC_Start_IT(&hadc1);
 
+  HAL_GPIO_WritePin(ESP_Reset_GPIO_Port, ESP_Reset_Pin, GPIO_PIN_RESET);
+  HAL_Delay(20);
+  HAL_GPIO_WritePin(ESP_Reset_GPIO_Port, ESP_Reset_Pin, GPIO_PIN_SET);
+
+  HAL_SuspendTick();
   HAL_PWR_EnableSleepOnExit();
   HAL_PWR_EnterSLEEPMode(PWR_MAINREGULATOR_ON, PWR_SLEEPENTRY_WFI);
+
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
-  //HAL_NVIC_EnableIRQ(EXTI1_IRQn);
   while (1){
-	  /*MPU6050_Read_Accel();
-	  	 MPU6050_Read_Gyro();
-	  	  print_MPU6050();
-	  	  HAL_Delay(500);
-	  	  */
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -759,7 +755,9 @@ static void MX_GPIO_Init(void)
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
   /* USER CODE BEGIN Callback 0 */
+
 	if (htim->Instance == TIM2) {
+		HAL_ResumeTick();
 		printf("TIMER SCADUTO! INVIO IL RESET ALL'ESP!\r\n");
 		flag = 0;
 
@@ -767,6 +765,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 		HAL_GPIO_WritePin(ESP_Reset_GPIO_Port, ESP_Reset_Pin, GPIO_PIN_RESET);
 		HAL_Delay(20);
 		HAL_GPIO_WritePin(ESP_Reset_GPIO_Port, ESP_Reset_Pin, GPIO_PIN_SET);
+		HAL_SuspendTick();
 	}
 
 	if(htim->Instance == TIM4) {
@@ -819,7 +818,6 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin){
 			printf("ESP_SIGNAL! i=%d, longitude=%f, latitude=%f, mq_mean = %f, road_quality = %d, fall_detected = %d\r\n\n", i, c.longitude, c.latitude, mq_mean, road_quality, fall_detected);
 
 			char line[60];
-			//snprintf(line, sizeof(line), "%d,%f\n", i, mq_mean);
 
 			snprintf(line, sizeof(line), "%d,%f,%f,%f,%d,%d\n", i, c.longitude, c.latitude, mq_mean, road_quality, fall_detected);
 
@@ -833,11 +831,12 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin){
 			HAL_TIM_Base_Start_IT(&htim2); //Timer 30 sec
 			flag=0;
 		}else{
+			HAL_ResumeTick();
 			HAL_Delay(200);
 			flag = 1;
+			HAL_SuspendTick();
 		}
 
-		///// TESTARE CHE VADA BENE CON LE NUOVE AGGIUNTE! SEMBRA CHE FUNZIONA BENE!!  //////
 		__HAL_GPIO_EXTI_CLEAR_IT(EXTI1_IRQn);
 		HAL_NVIC_ClearPendingIRQ(EXTI1_IRQn);
 
@@ -937,8 +936,8 @@ void HAL_I2C_MasterRxCpltCallback(I2C_HandleTypeDef* hi2c){
 		float gyro_vector = sqrt(pow(Gx, 2)+pow(Gy, 2)+pow(Gz, 2));
 		gyro_vectors[gyro_vector_index++] = gyro_vector;
 
-		printf("burst #%d: Accelerazione lineare asse x: %f g, y: %f g, z: %f g\r\n", i/12, Ax, Ay, Az);
-		printf("Gyro asse x: %f °/s, y: %f °/s, z: %f °/s \tgyro_vector: %f\r\n", Gx, Gy, Gz, gyro_vector);
+		//printf("burst #%d: Accelerazione lineare asse x: %f g, y: %f g, z: %f g\r\n", i/12, Ax, Ay, Az);
+		//printf("Gyro asse x: %f °/s, y: %f °/s, z: %f °/s \tgyro_vector: %f\r\n", Gx, Gy, Gz, gyro_vector);
 	}
 
 	for(int i=0; i<SLIDING_WINDOWS; i++){
