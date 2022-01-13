@@ -42,7 +42,11 @@
 
 /* Private macro -------------------------------------------------------------*/
 /* USER CODE BEGIN PM */
-
+#ifdef DEBUG
+# define DEBUG_PRINT(x) printf x
+#else
+# define DEBUG_PRINT(x) do {} while (0)
+#endif
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
@@ -59,13 +63,13 @@ UART_HandleTypeDef huart2;
 UART_HandleTypeDef huart3;
 
 /* USER CODE BEGIN PV */
-uint8_t i = 0;			///// SERVE A? CAMBIO NOME?
+uint8_t i = 0;			//TODO Da eliminare
 float Ax, Ay, Az, Gx, Gy, Gz = 0.0;
 float Accel_X_RAW, Accel_Y_RAW, Accel_Z_RAW, Gyro_X_RAW, Gyro_Y_RAW, Gyro_Z_RAW = 0.0;
 
 uint8_t flag = 0;
 
-//sensor data structures
+//Sensor data structures
 uint8_t mq_index;
 float mq_data[MQ_DATA_LENGTH];
 
@@ -144,9 +148,9 @@ void MPU6050_Init(){
 
 	// Verifico se il device è pronto
 	while(check != 104){
-		printf("no\r\n");
 		HAL_I2C_Mem_Read(&hi2c1, MPU6050_ADDR, WHO_AM_I_REG, 1, &check, 1, 1000);
 	}
+
 	if(check == 104){ // Se il device è pronto
 
 		// Scriviamo nel registro 0X6B tutti zeri per svegliare il sensore
@@ -185,58 +189,6 @@ void MPU6050_Init(){
 	}
 }
 
-void MPU6050_Read_Accel(){
-	uint8_t rec_data[6];
-
-
-	// Leggo 6 bytes dal registro ACCEL_XOUT_H
-	HAL_I2C_Mem_Read (&hi2c1, MPU6050_ADDR, ACCEL_XOUT_H_REG, 1, rec_data, 6, 1000);
-
-	Accel_X_RAW = (int16_t)(rec_data[0] << 8 | rec_data [1]);
-	Accel_Y_RAW = (int16_t)(rec_data[2] << 8 | rec_data [3]);
-	Accel_Z_RAW = (int16_t)(rec_data[4] << 8 | rec_data [5]);
-
-	/*** convert the RAW values into acceleration in 'g'
-	     we have to divide according to the Full scale value set in FS_SEL
-	     I have configured FS_SEL = 0. So I am dividing by 16384.0
-	     for more details check ACCEL_CONFIG Register              ****/
-
-	Ax = Accel_X_RAW/16384.0;  // get the float g
-	Ay = Accel_Y_RAW/16384.0;
-	Az = Accel_Z_RAW/16384.0;
-}
-
-void MPU6050_Read_Gyro(){
-	uint8_t rec_data[6];
-
-	// Leggo 6 bytes dal registro GYRO_XOUT_H
-	HAL_I2C_Mem_Read (&hi2c1, MPU6050_ADDR, GYRO_XOUT_H_REG, 1, rec_data, 6, 1000);
-
-	Gyro_X_RAW = (int16_t)(rec_data[0] << 8 | rec_data [1]);
-	Gyro_Y_RAW = (int16_t)(rec_data[2] << 8 | rec_data [3]);
-	Gyro_Z_RAW = (int16_t)(rec_data[4] << 8 | rec_data [5]);
-
-	/*** convert the RAW values into dps (°/s)
-	     we have to divide according to the Full scale value set in FS_SEL
-	     I have configured FS_SEL = 0. So I am dividing by 131.0
-	     for more details check GYRO_CONFIG Register              ****/
-
-	Gx = Gyro_X_RAW/131.0;
-	Gy = Gyro_Y_RAW/131.0;
-	Gz = Gyro_Z_RAW/131.0;
-}
-
-void print_MPU6050(){
-	printf("Ax = %.2f g\r\n", Ax);
-	printf("Ay = %.2f g\r\n", Ay);
-	printf("Az = %.2f g\r\n", Az);
-	printf("\r\n");
-	printf("Gx = %.2f g\r\n", Gx);
-	printf("Gy = %.2f g\r\n", Gy);
-	printf("Gz = %.2f g\r\n", Gz);
-	printf("\r\n");
-	printf("\r\n");
-}
 
 void fake_gps_init(){
 
@@ -318,6 +270,11 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
+
+  HAL_GPIO_WritePin(ESP_Reset_GPIO_Port, ESP_Reset_Pin, GPIO_PIN_RESET);
+  HAL_Delay(20);
+  HAL_GPIO_WritePin(ESP_Reset_GPIO_Port, ESP_Reset_Pin, GPIO_PIN_SET);
+
   MX_USART2_UART_Init();
   MX_TIM2_Init();
   MX_USART3_UART_Init();
@@ -333,13 +290,13 @@ int main(void)
   MPU6050_Init();
   HAL_DMA_Init(&hdma_i2c1_rx);
 
-  printf("start tim3\r\n");
+  DEBUG_PRINT(("Start tim3\r\n"));
   HAL_TIM_Base_Start(&htim3);
   HAL_ADC_Start_IT(&hadc1);
 
-  HAL_GPIO_WritePin(ESP_Reset_GPIO_Port, ESP_Reset_Pin, GPIO_PIN_RESET);
-  HAL_Delay(20);
-  HAL_GPIO_WritePin(ESP_Reset_GPIO_Port, ESP_Reset_Pin, GPIO_PIN_SET);
+  //HAL_GPIO_WritePin(ESP_Reset_GPIO_Port, ESP_Reset_Pin, GPIO_PIN_RESET);
+  //HAL_Delay(20);
+  //HAL_GPIO_WritePin(ESP_Reset_GPIO_Port, ESP_Reset_Pin, GPIO_PIN_SET);
 
   HAL_SuspendTick();
   HAL_PWR_EnableSleepOnExit();
@@ -758,7 +715,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 
 	if (htim->Instance == TIM2) {
 		HAL_ResumeTick();
-		printf("TIMER SCADUTO! INVIO IL RESET ALL'ESP!\r\n");
+		DEBUG_PRINT(("TIMER SCADUTO! INVIO IL RESET ALL'ESP!\r\n"));
 		flag = 0;
 
 		//Reset
@@ -769,7 +726,12 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 	}
 
 	if(htim->Instance == TIM4) {
-		printf("tim4 callback\r\n");
+		uint32_t cycles = 0;
+		double timeCallback;
+
+		DWT->CTRL |= 1;
+		DWT->CYCCNT = 0;
+		DEBUG_PRINT(("tim4 callback\r\n"));
 
 		uint8_t countArr[2];
 		uint16_t count=0;
@@ -779,7 +741,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 		HAL_I2C_Mem_Write(&hi2c1, MPU6050_ADDR, FIFO_EN_REG, 1, &Data, 1, 1000);
 		HAL_I2C_Mem_Read(&hi2c1, MPU6050_ADDR, FIFO_COUNTH, 1, countArr, 2, 1000);
 		count = (uint16_t) (countArr[0] << 8 | countArr[1]);
-		printf("fifo count: %d\r\n", count);
+		DEBUG_PRINT(("fifo count: %d\r\n", count));
 
 		if(count > 0 && count <= 1024) {
 			mpu_index = count;
@@ -791,6 +753,12 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 		else {
 			MPU6050_Init();
 		}
+
+		cycles = DWT->CYCCNT;
+		cycles--;
+
+		timeCallback = ((double)cycles/HAL_RCC_GetHCLKFreq())*10e+3;
+        printf("TIME (tim4 callback) =  %.2lf ms\n\r", timeCallback);
 	}
 
   /* USER CODE END Callback 0 */
@@ -801,11 +769,15 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 }
 
 
-
-
 // Callback interrupt ESP8266
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin){
 	if(GPIO_Pin == ESP_Signal_Pin){
+		uint32_t cycles = 0;
+		double timeCallback;
+
+		DWT->CTRL |= 1;
+		DWT->CYCCNT = 0;
+
 		HAL_NVIC_DisableIRQ(EXTI1_IRQn);
 		__HAL_TIM_CLEAR_FLAG(&htim2, TIM_SR_UIF);
 		if(flag){
@@ -815,7 +787,7 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin){
 			Coordinate c = get_coordinate();
 
 
-			printf("ESP_SIGNAL! i=%d, longitude=%f, latitude=%f, mq_mean = %f, road_quality = %d, fall_detected = %d\r\n\n", i, c.longitude, c.latitude, mq_mean, road_quality, fall_detected);
+			DEBUG_PRINT(("ESP_SIGNAL! i=%d, longitude=%f, latitude=%f, mq_mean = %f, road_quality = %d, fall_detected = %d\r\n\n", i, c.longitude, c.latitude, mq_mean, road_quality, fall_detected));
 
 			char line[60];
 
@@ -841,11 +813,18 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin){
 		HAL_NVIC_ClearPendingIRQ(EXTI1_IRQn);
 
 		HAL_NVIC_EnableIRQ(EXTI1_IRQn);
+
+		cycles = DWT->CYCCNT;
+		cycles--;
+
+		timeCallback = ((double)cycles/HAL_RCC_GetHCLKFreq())*10e+3;
+
+		printf("TIME (ESP_Signal) =  %.2lf ms\n\r", timeCallback);
 	}
 
 	if(GPIO_Pin == MPU_DATA_RDY_Pin){
 		//Avvio timer periodico per lettura mpu
-		printf("EXTI 11 Interrupt\r\n");
+		DEBUG_PRINT(("EXTI 11 Interrupt\r\n"));
 		__HAL_TIM_CLEAR_FLAG(&htim4, TIM_SR_UIF);
 		HAL_TIM_Base_Start_IT(&htim4);
 		HAL_NVIC_DisableIRQ(EXTI15_10_IRQn);
@@ -860,9 +839,9 @@ void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef*hadc){
 
 	v = ((float)rawValue) / 4095 * 4660;
 	ppm = ((v - 320.0) / 0.65) + 400;
-	printf("rawValue: %hu\r\n", rawValue);
-	printf("v: %f\r\n", v);
-	printf("PPM: %f\r\n", ppm);
+	DEBUG_PRINT(("rawValue: %hu\r\n", rawValue));
+	DEBUG_PRINT(("v: %f\r\n", v));
+	DEBUG_PRINT(("PPM: %f\r\n", ppm));
 	mq_data[mq_index] = ppm;
 	mq_index = (mq_index + 1) % MQ_DATA_LENGTH;
 }
@@ -887,9 +866,11 @@ void fall_counter_increment(float gyro_value){
 }
 
 void HAL_I2C_MasterRxCpltCallback(I2C_HandleTypeDef* hi2c){
-	/*if(fall_detected){
-		fall_detected=0;
-	}*/
+	uint32_t cycles = 0;
+	double timeCallback;
+
+	DWT->CTRL |= 1;
+	DWT->CYCCNT = 0;
 
 	/// Riattivo scrittura buffer
 
@@ -904,7 +885,7 @@ void HAL_I2C_MasterRxCpltCallback(I2C_HandleTypeDef* hi2c){
 	uint16_t accel_vector_index=0, gyro_vector_index = 0;
 	float accel_sum = 0;
 	uint8_t sum_counter = 0, sum_index=0;
-	printf("receive dma callback, mpu index: %d\r\n", mpu_index);
+	DEBUG_PRINT(("receive dma callback, mpu index: %d\r\n", mpu_index));
 	for(int i=0; i<mpu_index; i+=12){
 		Accel_X_RAW = (int16_t)(mpu_data[i] << 8 | mpu_data[i+1]);
 		Accel_Y_RAW = (int16_t)(mpu_data[i+2] << 8 | mpu_data[i+3]);
@@ -936,8 +917,8 @@ void HAL_I2C_MasterRxCpltCallback(I2C_HandleTypeDef* hi2c){
 		float gyro_vector = sqrt(pow(Gx, 2)+pow(Gy, 2)+pow(Gz, 2));
 		gyro_vectors[gyro_vector_index++] = gyro_vector;
 
-		//printf("burst #%d: Accelerazione lineare asse x: %f g, y: %f g, z: %f g\r\n", i/12, Ax, Ay, Az);
-		//printf("Gyro asse x: %f °/s, y: %f °/s, z: %f °/s \tgyro_vector: %f\r\n", Gx, Gy, Gz, gyro_vector);
+		DEBUG_PRINT(("burst #%d: Accelerazione lineare asse x: %f g, y: %f g, z: %f g\r\n", i/12, Ax, Ay, Az));
+		DEBUG_PRINT(("Gyro asse x: %f °/s, y: %f °/s, z: %f °/s \tgyro_vector: %f\r\n", Gx, Gy, Gz, gyro_vector));
 	}
 
 	for(int i=0; i<SLIDING_WINDOWS; i++){
@@ -959,15 +940,20 @@ void HAL_I2C_MasterRxCpltCallback(I2C_HandleTypeDef* hi2c){
 			float threshold = BASE_THRESHOLD - gyro_vectors[10*i+j]/250.0;
 			float difference = abs(accel_vectors[10*i+j] - means[i]);
 			if(difference > threshold) {
-				printf("punto brutto alla misurazione nr. %d\r\n", 10*i+j);
+				DEBUG_PRINT(("punto brutto alla misurazione nr. %d\r\n", 10*i+j));
 				bad_quality_road_counter++;
 				check_fall=1;
 			}
 		}
 	}
+	cycles = DWT->CYCCNT;
+	cycles--;
 
-	printf("calcolati  %d   punti brutti\n\r", bad_quality_road_counter);
-	printf("fall_detected: %d\r\n", fall_detected);
+	timeCallback = ((double)cycles/HAL_RCC_GetHCLKFreq())*10e+3;
+
+	printf("TIME (HAL_I2C_MasterRxCpltCallback) =  %.2lf ms\n\r", timeCallback);
+	DEBUG_PRINT(("calcolati  %d   punti brutti\n\r", bad_quality_road_counter));
+	DEBUG_PRINT(("fall_detected: %d\r\n", fall_detected));
 
 }
 /* USER CODE END 4 */
