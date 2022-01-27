@@ -12,13 +12,12 @@ bool data_available = false;
 
 WiFiClient client;
 
-//Establishing Local server at port 80 whenever required
+//Dichiaro un server locale sulla porta 80 
 ESP8266WebServer server(80);
 
 unsigned long myChannelNumber = CH_ID;
 const char * myWriteAPIKey = APIKEY;
 
-/* holds the current serial line */
 String currentLine;
 
 int lastTemp;
@@ -42,13 +41,13 @@ void setup() {
   EEPROM.begin(512); //Inizializzazione EEPROM
   delay(10);
 
-  pinMode(LED_BUILTIN, OUTPUT);     // Inizializzazione LED_BUILTIN come pinout
-  pinMode(2, OUTPUT);               // Inizializzazione GPIO2 come pinout
+  pinMode(LED_BUILTIN, OUTPUT);     //Inizializzazione LED_BUILTIN come pinout
+  pinMode(2, OUTPUT);               //Inizializzazione GPIO2 come pinout
 
-  digitalWrite(LED_BUILTIN, HIGH);  // Led spento
+  digitalWrite(LED_BUILTIN, HIGH);  //Led spento
   digitalWrite(2, LOW);         
   
-  Serial.setTimeout(1000); // Aspetto max 1 sec una stringa sulla seriale
+  Serial.setTimeout(1000); //Aspetto max 1 sec una stringa sulla seriale
   
   String esid;
   for (int i = 0; i < 32; ++i){
@@ -61,7 +60,7 @@ void setup() {
   }
 
   WiFi.mode(WIFI_STA);
-	ThingSpeak.begin(client); // Inizializzazione ThingSpeak
+  ThingSpeak.begin(client); //Inizializzazione ThingSpeak
   connect_to_wifi(esid.c_str(), epass.c_str());
 }
 
@@ -117,16 +116,15 @@ void read_serial_packet() {
       lastFallDetected = fallDetectedStr.toInt();
     }
   }
-
 }
 
 void connect_to_wifi(String ssid, String pass) {  
-  WiFi.begin(ssid, pass); // Connessione alla rete WiFi
+  WiFi.begin(ssid, pass); //Connessione alla rete WiFi
   delay(1000);
   if (testWifi()){
-    digitalWrite(LED_BUILTIN, LOW); // Accendi led 
+    digitalWrite(LED_BUILTIN, LOW); //Accendi led
     
-    digitalWrite(2, HIGH); // Invia un segnale alto su GPIO2 per 50 ms
+    digitalWrite(2, HIGH); //Invia un segnale alto su GPIO2 per 50 ms
     delay(50); 
     digitalWrite(2, LOW);         
   }else{
@@ -139,8 +137,8 @@ void connect_to_wifi(String ssid, String pass) {
       server.handleClient();
     }
 
-    digitalWrite(LED_BUILTIN, LOW); // Accendi led 
-    digitalWrite(2, HIGH);          // Invia un segnale alto su GPIO2 per 50 ms
+    digitalWrite(LED_BUILTIN, LOW); //Accendi led 
+    digitalWrite(2, HIGH);          //Invia un segnale alto su GPIO2 per 50 ms
     delay(50); 
     digitalWrite(2, LOW);  
   }
@@ -152,7 +150,6 @@ void launchWeb(){
 }
 
 void setupAP(void){
-  //WiFi.mode(WIFI_STA); ??
   WiFi.disconnect();
   delay(100);
   int n = WiFi.scanNetworks();
@@ -230,7 +227,6 @@ void createWebServer(){
     });
   }}
 
-
 void send_to_thingsspeak() {
   ThingSpeak.setField(1, lastTemp);
   ThingSpeak.setField(2, lastLongitude);
@@ -239,7 +235,9 @@ void send_to_thingsspeak() {
   ThingSpeak.setField(5, lastRoadQuality);
   ThingSpeak.setField(6, lastFallDetected);
   
-  //send update via HTTPS REST call
+  //Invio i dati a ThinkSpeak tramite chiamata REST HTTPS
   int x = ThingSpeak.writeFields(myChannelNumber, myWriteAPIKey);
+
+  //Attivo la modalità deep sleep finchè non riceverò un hard reset
   ESP.deepSleep(0); 
 }

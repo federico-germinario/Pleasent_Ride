@@ -82,7 +82,6 @@ UART_HandleTypeDef huart3;
 
 /* USER CODE BEGIN PV */
 uint8_t i = 0;			//TODO Da eliminare
-uint8_t trueSignal = 0; //Debounce flag
 uint8_t MPU_OK = 0;     //Check status MPU flag
 
 //Fake gps structures
@@ -245,9 +244,18 @@ Coordinate get_coordinate(){
 }
 
 void reset_esp8266(){
+	HAL_NVIC_DisableIRQ(EXTI1_IRQn);
+
 	HAL_GPIO_WritePin(ESP_Reset_GPIO_Port, ESP_Reset_Pin, GPIO_PIN_RESET);
 	HAL_Delay(20);
 	HAL_GPIO_WritePin(ESP_Reset_GPIO_Port, ESP_Reset_Pin, GPIO_PIN_SET);
+	HAL_Delay(200);
+
+	HAL_NVIC_ClearPendingIRQ(EXTI1_IRQn);
+	__HAL_GPIO_EXTI_CLEAR_IT(ESP_Signal_Pin);
+
+	HAL_GPIO_WritePin(ESP_Signal_GPIO_Port, ESP_Signal_Pin, GPIO_PIN_RESET);
+	HAL_NVIC_EnableIRQ(EXTI1_IRQn);
 }
 
 /* USER CODE END 0 */
@@ -259,6 +267,7 @@ void reset_esp8266(){
 int main(void)
 {
   /* USER CODE BEGIN 1 */
+  DEBUG_PRINT(("Start initialization STM32\r\n"));
   memset(mq_data, 0, MQ_DATA_LENGTH*sizeof(float));
   /* USER CODE END 1 */
 
@@ -280,9 +289,6 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
-
-  reset_esp8266();
-
   MX_USART2_UART_Init();
   MX_TIM2_Init();
   MX_USART3_UART_Init();
@@ -298,9 +304,12 @@ int main(void)
   MPU6050_Init();
   HAL_DMA_Init(&hdma_i2c1_rx);
 
-  DEBUG_PRINT(("Start tim3\r\n"));
   HAL_TIM_Base_Start(&htim3);
   HAL_ADC_Start_IT(&hadc1);
+
+  HAL_NVIC_DisableIRQ(EXTI1_IRQn);
+  __HAL_TIM_CLEAR_FLAG(&htim2, TIM_SR_UIF);
+  HAL_TIM_Base_Start_IT(&htim2);
 
   HAL_SuspendTick();
   HAL_PWR_EnableSleepOnExit();
@@ -712,32 +721,32 @@ static void MX_GPIO_Init(void)
 
 /* USER CODE BEGIN 4 */
 
-
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
   /* USER CODE BEGIN Callback 0 */
 
 	if (htim->Instance == TIM2) {
 		HAL_ResumeTick();
-		DEBUG_PRINT(("Timer 30 s scaduto! INVIO IL RESET ALL'ESP!\r\n"));
+		DEBUG_PRINT(("[TIM2] 30 sec timer expired! SEND RESET TO ESP!\r\n\n"));
 
 		// Check MPU
-		if(MPU_OK == 0){
+		if(!MPU_OK){
 			MPU6050_Init();
 		}
-		trueSignal = 0;
 
 		reset_esp8266();
+
 		HAL_SuspendTick();
 	}
 
 	if(htim->Instance == TIM4) {
-		uint32_t cycles = 0;
+		/*uint32_t cycles = 0;
 		double timeCallback;
 
 		DWT->CTRL |= 1;
 		DWT->CYCCNT = 0;
-		DEBUG_PRINT(("Tim4 callback\r\n"));
+		*/
+		DEBUG_PRINT(("[TIM4] Reading inertial data from MPU-6050\r\n"));
 
 		uint8_t countArr[2];
 		uint16_t count=0;
@@ -747,7 +756,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 		HAL_I2C_Mem_Write(&hi2c1, MPU6050_ADDR, FIFO_EN_REG, 1, &Data, 1, 1000);
 		HAL_I2C_Mem_Read(&hi2c1, MPU6050_ADDR, FIFO_COUNTH, 1, countArr, 2, 1000);
 		count = (uint16_t) (countArr[0] << 8 | countArr[1]);
-		DEBUG_PRINT(("Fifo count: %d\r\n", count));
+		DEBUG_PRINT(("Fifo count: %d\r\n\n", count));
 
 		if(count > 0 && count <= 1024) {
 			mpu_index = count;
@@ -760,11 +769,12 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 			MPU6050_Init();
 		}
 
-		cycles = DWT->CYCCNT;
+		/*cycles = DWT->CYCCNT;
 		cycles--;
 
 		timeCallback = ((double)cycles/HAL_RCC_GetHCLKFreq())*10e+3;
         printf("TIME (tim4 callback) =  %.2lf ms\n\r", timeCallback);
+        */
 	}
 
   /* USER CODE END Callback 0 */
@@ -778,59 +788,57 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 // Callback interrupt ESP8266
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin){
 	if(GPIO_Pin == ESP_Signal_Pin){
-		uint32_t cycles = 0;
+
+		/*uint32_t cycles = 0;
 		double timeCallback;
 
 		DWT->CTRL |= 1;
 		DWT->CYCCNT = 0;
+		*/
+		DEBUG_PRINT(("[ESP_SIGNAL] Sending data to esp8266\r\n"));
+		uint16_t road_quality = 0;
 
-		HAL_NVIC_DisableIRQ(EXTI1_IRQn);
-		__HAL_TIM_CLEAR_FLAG(&htim2, TIM_SR_UIF);
-		if(trueSignal){
-			uint16_t road_quality = bad_quality_road_counter;
-			bad_quality_road_counter = 0;
-			float mq_mean = float_sum(mq_data, mq_index)/mq_index;
-			Coordinate c = get_coordinate();
+		float mq_mean = float_sum(mq_data, mq_index)/mq_index;
+		Coordinate c = get_coordinate();
 
-			DEBUG_PRINT(("ESP_SIGNAL! i=%d, longitude=%f, latitude=%f, mq_mean = %f, road_quality = %d, fall_detected = %d\r\n\n", i, c.longitude, c.latitude, mq_mean, road_quality, fall_detected));
-
-			char line[60];
-
-			snprintf(line, sizeof(line), "%d,%f,%f,%f,%d,%d\n", i, c.longitude, c.latitude, mq_mean, road_quality, fall_detected);
-
-			if(fall_detected){
-				fall_detected=0;
-			}
-
-			i++;
-			HAL_UART_Transmit(&huart2, (uint8_t*) (line), strlen(line), 1000);
-
-			HAL_TIM_Base_Start_IT(&htim2); //Timer 30 sec
-			trueSignal=0;
-		}else{
-			HAL_ResumeTick();
-			HAL_Delay(200);
-			trueSignal = 1;
-			HAL_SuspendTick();
+		if(bad_quality_road_counter <= 10){
+			road_quality = 0; //Excellent road quality
+		}else if(bad_quality_road_counter > 10 && bad_quality_road_counter <= 20){
+			road_quality = 1; //Decent road quality
+		}else if(bad_quality_road_counter > 20){
+			road_quality = 2; //Bad road quality
 		}
+
+		bad_quality_road_counter = 0;
+
+		DEBUG_PRINT(("[ESP_SIGNAL] i=%d, Longitude=%f, Latitude=%f, PPM = %f, Road_quality = %d, Fall_detected = %d\r\n\n", i, c.longitude, c.latitude, mq_mean, road_quality, fall_detected));
+
+		char line[60];
+
+		snprintf(line, sizeof(line), "%d,%f,%f,%f,%d,%d\n", i, c.longitude, c.latitude, mq_mean, road_quality, fall_detected);
+
+		fall_detected=0;
+		i++;
+
+		HAL_UART_Transmit(&huart2, (uint8_t*) (line), strlen(line), 1000);
 
 		__HAL_GPIO_EXTI_CLEAR_IT(EXTI1_IRQn);
 		HAL_NVIC_ClearPendingIRQ(EXTI1_IRQn);
 
-		HAL_NVIC_EnableIRQ(EXTI1_IRQn);
+		HAL_NVIC_DisableIRQ(EXTI1_IRQn);
 
-		cycles = DWT->CYCCNT;
+		/*cycles = DWT->CYCCNT;
 		cycles--;
 
 		timeCallback = ((double)cycles/HAL_RCC_GetHCLKFreq())*10e+3;
-
 		printf("TIME (ESP_Signal) =  %.2lf ms\n\r", timeCallback);
+		*/
 	}
 
-	if(GPIO_Pin == MPU_DATA_RDY_Pin){
+	if(GPIO_Pin == MPU_DATA_RDY_Pin){ ////TODO: si può togliere
 
 		//Periodic timer start for mpu reading
-		DEBUG_PRINT(("EXTI 11 Interrupt\r\n"));
+		DEBUG_PRINT(("[MPU_DATA_RDY_Pin] \r\n\n")); //TODO
 		__HAL_TIM_CLEAR_FLAG(&htim4, TIM_SR_UIF);
 		HAL_TIM_Base_Start_IT(&htim4);
 		HAL_NVIC_DisableIRQ(EXTI15_10_IRQn);
@@ -845,9 +853,9 @@ void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef*hadc){
 
 	v = ((float)rawValue) / 4095 * 4660;
 	ppm = ((v - 320.0) / 0.65) + 400;
-	DEBUG_PRINT(("rawValue: %hu\r\n", rawValue));
-	DEBUG_PRINT(("v: %f\r\n", v));
-	DEBUG_PRINT(("PPM: %f\r\n", ppm));
+	//DEBUG_PRINT(("rawValue: %hu\r\n", rawValue));
+	//DEBUG_PRINT(("v: %f\r\n", v));
+	DEBUG_PRINT(("[HAL_ADC_ConvCpltCallback] PPM: %f\r\n\n", ppm));
 	mq_data[mq_index] = ppm;
 	mq_index = (mq_index + 1) % MQ_DATA_LENGTH;
 }
@@ -872,11 +880,12 @@ void fall_counter_increment(float gyro_value){
 }
 
 void HAL_I2C_MasterRxCpltCallback(I2C_HandleTypeDef* hi2c){
-	uint32_t cycles = 0;
+	/*uint32_t cycles = 0;
 	double timeCallback;
 
 	DWT->CTRL |= 1;
 	DWT->CYCCNT = 0;
+	*/
 
 	MPU_OK = 1;
 
@@ -898,7 +907,6 @@ void HAL_I2C_MasterRxCpltCallback(I2C_HandleTypeDef* hi2c){
 		Accel_X_RAW = (int16_t)(mpu_data[i] << 8 | mpu_data[i+1]);
 		Accel_Y_RAW = (int16_t)(mpu_data[i+2] << 8 | mpu_data[i+3]);
 		Accel_Z_RAW = (int16_t)(mpu_data[i+4] << 8 | mpu_data[i+5]);
-
 
 		Ax = Accel_X_RAW/16384.0 + offset_accelX;  // get the float g
 		Ay = Accel_Y_RAW/16384.0 + offset_accelY;
@@ -954,14 +962,16 @@ void HAL_I2C_MasterRxCpltCallback(I2C_HandleTypeDef* hi2c){
 			}
 		}
 	}
-	cycles = DWT->CYCCNT;
+
+	/*cycles = DWT->CYCCNT;
 	cycles--;
 
 	timeCallback = ((double)cycles/HAL_RCC_GetHCLKFreq())*10e+3;
 
 	printf("TIME (HAL_I2C_MasterRxCpltCallback) =  %.2lf ms\n\r", timeCallback);
-	DEBUG_PRINT(("calcolati  %d   punti brutti\n\r", bad_quality_road_counter));
-	DEBUG_PRINT(("fall_detected: %d\r\n", fall_detected));
+	*/
+	DEBUG_PRINT(("Bad points calculated: %d\r\n", bad_quality_road_counter));
+	DEBUG_PRINT(("Fall_detected: %d\r\n\n", fall_detected));
 
 }
 /* USER CODE END 4 */

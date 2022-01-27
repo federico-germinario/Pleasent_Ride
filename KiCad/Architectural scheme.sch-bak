@@ -228,6 +228,4 @@ Text Notes 5250 3750 1    50   ~ 0
 USART3_DEBUG_TX
 Text Notes 5000 3750 1    50   ~ 0
 USART3_DEBUG_RX
-Text Notes 10900 6050 1    138  ~ 0
-Figura 2
 $EndSCHEMATC
