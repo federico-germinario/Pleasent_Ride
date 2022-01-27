@@ -134,7 +134,7 @@ static void MX_DMA_Init(void);
 static void MX_TIM3_Init(void);
 static void MX_TIM4_Init(void);
 /* USER CODE BEGIN PFP */
-float float_sum(float* collection, uint8_t index); //Function that returns the sum of a collection of a certain length
+
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -251,13 +251,33 @@ void reset_esp8266(){
 	HAL_GPIO_WritePin(ESP_Reset_GPIO_Port, ESP_Reset_Pin, GPIO_PIN_SET);
 	HAL_Delay(200);
 
-	HAL_NVIC_ClearPendingIRQ(EXTI1_IRQn);
-	__HAL_GPIO_EXTI_CLEAR_IT(ESP_Signal_Pin);
+	HAL_NVIC_ClearPendingIRQ(EXTI1_IRQn); //Clears the pending bit of an EXTI1 interrupt.   //TODO: ne basta uno?
+	__HAL_GPIO_EXTI_CLEAR_IT(ESP_Signal_Pin); //Clears the EXTI's line pending bits.
 
 	HAL_GPIO_WritePin(ESP_Signal_GPIO_Port, ESP_Signal_Pin, GPIO_PIN_RESET);
 	HAL_NVIC_EnableIRQ(EXTI1_IRQn);
 }
 
+//Function that returns the sum of a collection of a certain length
+float float_sum(float* collection, uint8_t index) {
+	float sum = 0.0;
+	for(int i=0; i<index; i++){
+		sum += collection[i];
+	}
+	return sum;
+}
+
+//TODO: commentare
+void fall_counter_increment(float gyro_value){
+	if(check_fall){
+		check_fall_counter++;
+		if(check_fall_counter>20){
+			if(gyro_value>30.0){
+				check_fall_counter=check_fall=0;
+			}
+		}
+	}
+}
 /* USER CODE END 0 */
 
 /**
@@ -267,7 +287,6 @@ void reset_esp8266(){
 int main(void)
 {
   /* USER CODE BEGIN 1 */
-  DEBUG_PRINT(("Start initialization STM32\r\n"));
   memset(mq_data, 0, MQ_DATA_LENGTH*sizeof(float));
   /* USER CODE END 1 */
 
@@ -289,16 +308,16 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
-  MX_USART2_UART_Init();
-  MX_TIM2_Init();
-  MX_USART3_UART_Init();
-  MX_I2C1_Init();
-  MX_ADC1_Init();
-  MX_DMA_Init();
-  MX_TIM3_Init();
-  MX_TIM4_Init();
+  MX_USART2_UART_Init();    //UART used to communicate with the ESP8266
+  MX_TIM2_Init(); 			//30 sec timer to wake up ESP8266
+  MX_USART3_UART_Init();    //Debugging UART
+  MX_I2C1_Init();           //I2C to communicate with MPU-6050
+  MX_ADC1_Init();           //ADC1 used to convert signals from the MQ-135
+  MX_DMA_Init();            //TODO: commentare
+  MX_TIM3_Init();           //3 sec timer to start ADC1 conversion
+  MX_TIM4_Init();           //4 sec timer for reading inertial data from MPU-6050
   /* USER CODE BEGIN 2 */
-  RetargetInit(&huart3); // Retarget printf to uart3
+  RetargetInit(&huart3); //Retarget printf to uart3
   fake_gps_init();
 
   MPU6050_Init();
@@ -308,11 +327,17 @@ int main(void)
   HAL_ADC_Start_IT(&hadc1);
 
   HAL_NVIC_DisableIRQ(EXTI1_IRQn);
-  __HAL_TIM_CLEAR_FLAG(&htim2, TIM_SR_UIF);
-  HAL_TIM_Base_Start_IT(&htim2);
+  __HAL_TIM_CLEAR_FLAG(&htim2, TIM_SR_UIF); //Clear update interrupt flag //TODO: a che serve?
+  HAL_TIM_Base_Start_IT(&htim2); //Start timer 30 s
 
-  HAL_SuspendTick();
+  HAL_SuspendTick(); //The SysTick interrupt is disabled and then the Tick increment is suspended
+
+  /*
+   * Set SLEEPONEXIT bit of SCR register. When this bit is set, the processor re-enters SLEEP mode
+   * when an interruption handling is over.
+   */
   HAL_PWR_EnableSleepOnExit();
+
   HAL_PWR_EnterSLEEPMode(PWR_MAINREGULATOR_ON, PWR_SLEEPENTRY_WFI);
 
   /* USER CODE END 2 */
@@ -476,7 +501,7 @@ static void MX_TIM2_Init(void)
   htim2.Instance = TIM2;
   htim2.Init.Prescaler = 49999;
   htim2.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim2.Init.Period = 14999;
+  htim2.Init.Period = 14999;                     //TODO: perchè sono 30 sec?
   htim2.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim2.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
   if (HAL_TIM_Base_Init(&htim2) != HAL_OK)
@@ -724,10 +749,9 @@ static void MX_GPIO_Init(void)
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
   /* USER CODE BEGIN Callback 0 */
-
 	if (htim->Instance == TIM2) {
 		HAL_ResumeTick();
-		DEBUG_PRINT(("[TIM2] 30 sec timer expired! SEND RESET TO ESP!\r\n\n"));
+		DEBUG_PRINT(("[TIM2] 30 sec timer expired! SEND RESET TO ESP8266!\r\n\n"));
 
 		// Check MPU
 		if(!MPU_OK){
@@ -739,6 +763,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 		HAL_SuspendTick();
 	}
 
+	//TODO: commenti
 	if(htim->Instance == TIM4) {
 		/*uint32_t cycles = 0;
 		double timeCallback;
@@ -752,6 +777,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 		uint16_t count=0;
 
 		uint8_t Data = 0x0;
+
 
 		HAL_I2C_Mem_Write(&hi2c1, MPU6050_ADDR, FIFO_EN_REG, 1, &Data, 1, 1000);
 		HAL_I2C_Mem_Read(&hi2c1, MPU6050_ADDR, FIFO_COUNTH, 1, countArr, 2, 1000);
@@ -785,7 +811,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 }
 
 
-// Callback interrupt ESP8266
+//Callback interrupt ESP8266
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin){
 	if(GPIO_Pin == ESP_Signal_Pin){
 
@@ -820,9 +846,10 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin){
 		fall_detected=0;
 		i++;
 
+		//Sending data via USART to ESP8266
 		HAL_UART_Transmit(&huart2, (uint8_t*) (line), strlen(line), 1000);
 
-		__HAL_GPIO_EXTI_CLEAR_IT(EXTI1_IRQn);
+		__HAL_GPIO_EXTI_CLEAR_IT(EXTI1_IRQn);  //Todo: servono entrambi?
 		HAL_NVIC_ClearPendingIRQ(EXTI1_IRQn);
 
 		HAL_NVIC_DisableIRQ(EXTI1_IRQn);
@@ -835,10 +862,10 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin){
 		*/
 	}
 
-	if(GPIO_Pin == MPU_DATA_RDY_Pin){ ////TODO: si può togliere
+	if(GPIO_Pin == MPU_DATA_RDY_Pin){ //TODO: si può togliere, già messo sulla relazione
 
 		//Periodic timer start for mpu reading
-		DEBUG_PRINT(("[MPU_DATA_RDY_Pin] \r\n\n")); //TODO
+		DEBUG_PRINT(("[MPU_DATA_RDY_Pin] \r\n\n"));
 		__HAL_TIM_CLEAR_FLAG(&htim4, TIM_SR_UIF);
 		HAL_TIM_Base_Start_IT(&htim4);
 		HAL_NVIC_DisableIRQ(EXTI15_10_IRQn);
@@ -860,25 +887,7 @@ void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef*hadc){
 	mq_index = (mq_index + 1) % MQ_DATA_LENGTH;
 }
 
-float float_sum(float* collection, uint8_t index) {
-	float sum = 0.0;
-	for(int i=0; i<index; i++){
-		sum += collection[i];
-	}
-	return sum;
-}
-
-void fall_counter_increment(float gyro_value){
-	if(check_fall){
-		check_fall_counter++;
-		if(check_fall_counter>20){
-			if(gyro_value>30.0){
-				check_fall_counter=check_fall=0;
-			}
-		}
-	}
-}
-
+//TODO: commenti
 void HAL_I2C_MasterRxCpltCallback(I2C_HandleTypeDef* hi2c){
 	/*uint32_t cycles = 0;
 	double timeCallback;
