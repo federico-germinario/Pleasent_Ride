@@ -35,7 +35,7 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-#define MQ_DATA_LENGTH 8
+#define MQ_DATA_LENGTH 12
 #define BASE_THRESHOLD 1.0
 #define SLIDING_WINDOWS 7
 #define COORDINATE_NUMBER 13
@@ -81,7 +81,6 @@ UART_HandleTypeDef huart2;
 UART_HandleTypeDef huart3;
 
 /* USER CODE BEGIN PV */
-uint8_t i = 0;			//TODO Da eliminare
 uint8_t MPU_OK = 0;     //Check status MPU flag
 
 //Fake gps structures
@@ -142,7 +141,6 @@ static void MX_TIM4_Init(void);
 #include <errno.h>
 #include <sys/stat.h>
 #include "retarget_uart.h"
-
 
 void MPU6050_Init(){
 	uint8_t check, Data;
@@ -251,10 +249,10 @@ void reset_esp8266(){
 	HAL_GPIO_WritePin(ESP_Reset_GPIO_Port, ESP_Reset_Pin, GPIO_PIN_SET);
 	HAL_Delay(200);
 
-	HAL_NVIC_ClearPendingIRQ(EXTI1_IRQn); //Clears the pending bit of an EXTI1 interrupt.   //TODO: ne basta uno?
-	__HAL_GPIO_EXTI_CLEAR_IT(ESP_Signal_Pin); //Clears the EXTI's line pending bits.
+	HAL_NVIC_ClearPendingIRQ(EXTI1_IRQn); //Clears the pending bit of an EXTI1 interrupt.
+	__HAL_GPIO_EXTI_CLEAR_IT(ESP_Signal_Pin);
 
-	HAL_GPIO_WritePin(ESP_Signal_GPIO_Port, ESP_Signal_Pin, GPIO_PIN_RESET);
+	//HAL_GPIO_WritePin(ESP_Signal_GPIO_Port, ESP_Signal_Pin, GPIO_PIN_RESET);
 	HAL_NVIC_EnableIRQ(EXTI1_IRQn);
 }
 
@@ -267,12 +265,12 @@ float float_sum(float* collection, uint8_t index) {
 	return sum;
 }
 
-//TODO: commentare
+
 void fall_counter_increment(float gyro_value){
-	if(check_fall){
+	if(check_fall){                   //Start counting after first bad spot
 		check_fall_counter++;
-		if(check_fall_counter>20){
-			if(gyro_value>30.0){
+		if(check_fall_counter>20){    //The fall can last 20 measurements
+			if(gyro_value>30.0){      //Check user movements
 				check_fall_counter=check_fall=0;
 			}
 		}
@@ -308,16 +306,16 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
-  MX_USART2_UART_Init();    //UART used to communicate with the ESP8266
-  MX_TIM2_Init(); 			//30 sec timer to wake up ESP8266
-  MX_USART3_UART_Init();    //Debugging UART
-  MX_I2C1_Init();           //I2C to communicate with MPU-6050
-  MX_ADC1_Init();           //ADC1 used to convert signals from the MQ-135
-  MX_DMA_Init();            //TODO: commentare
-  MX_TIM3_Init();           //3 sec timer to start ADC1 conversion
-  MX_TIM4_Init();           //4 sec timer for reading inertial data from MPU-6050
+  MX_USART2_UART_Init();
+  MX_TIM2_Init();
+  MX_USART3_UART_Init();
+  MX_I2C1_Init();
+  MX_ADC1_Init();
+  MX_DMA_Init();
+  MX_TIM3_Init();
+  MX_TIM4_Init();
   /* USER CODE BEGIN 2 */
-  RetargetInit(&huart3); //Retarget printf to uart3
+  RetargetInit(&huart3); 	//Retarget printf to uart3
   fake_gps_init();
 
   MPU6050_Init();
@@ -327,8 +325,8 @@ int main(void)
   HAL_ADC_Start_IT(&hadc1);
 
   HAL_NVIC_DisableIRQ(EXTI1_IRQn);
-  __HAL_TIM_CLEAR_FLAG(&htim2, TIM_SR_UIF); //Clear update interrupt flag //TODO: a che serve?
-  HAL_TIM_Base_Start_IT(&htim2); //Start timer 30 s
+  __HAL_TIM_CLEAR_FLAG(&htim2, TIM_SR_UIF); //Clear update interrupt flag
+  HAL_TIM_Base_Start_IT(&htim2); 			//Start timer 30 s
 
   HAL_SuspendTick(); //The SysTick interrupt is disabled and then the Tick increment is suspended
 
@@ -499,9 +497,9 @@ static void MX_TIM2_Init(void)
 
   /* USER CODE END TIM2_Init 1 */
   htim2.Instance = TIM2;
-  htim2.Init.Prescaler = 49999;
+  htim2.Init.Prescaler = 24999;
   htim2.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim2.Init.Period = 14999;                     //TODO: perchè sono 30 sec?
+  htim2.Init.Period = 29999;
   htim2.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim2.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
   if (HAL_TIM_Base_Init(&htim2) != HAL_OK)
@@ -544,9 +542,9 @@ static void MX_TIM3_Init(void)
 
   /* USER CODE END TIM3_Init 1 */
   htim3.Instance = TIM3;
-  htim3.Init.Prescaler = 49999;
+  htim3.Init.Prescaler = 24999;
   htim3.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim3.Init.Period = 2499;
+  htim3.Init.Period = 4999;
   htim3.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim3.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
   if (HAL_TIM_Base_Init(&htim3) != HAL_OK)
@@ -589,9 +587,9 @@ static void MX_TIM4_Init(void)
 
   /* USER CODE END TIM4_Init 1 */
   htim4.Instance = TIM4;
-  htim4.Init.Prescaler = 49999;
-  htim4.Init.CounterMode = TIM_COUNTERMODE_DOWN;
-  htim4.Init.Period = 3999;
+  htim4.Init.Prescaler = 24999;
+  htim4.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim4.Init.Period = 8099;
   htim4.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim4.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
   if (HAL_TIM_Base_Init(&htim4) != HAL_OK)
@@ -736,10 +734,10 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_Init(MPU_DATA_RDY_GPIO_Port, &GPIO_InitStruct);
 
   /* EXTI interrupt init*/
-  HAL_NVIC_SetPriority(EXTI1_IRQn, 1, 0);
+  HAL_NVIC_SetPriority(EXTI1_IRQn, 1, 1);
   HAL_NVIC_EnableIRQ(EXTI1_IRQn);
 
-  HAL_NVIC_SetPriority(EXTI15_10_IRQn, 2, 0);
+  HAL_NVIC_SetPriority(EXTI15_10_IRQn, 1, 0);
   HAL_NVIC_EnableIRQ(EXTI15_10_IRQn);
 
 }
@@ -763,7 +761,6 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 		HAL_SuspendTick();
 	}
 
-	//TODO: commenti
 	if(htim->Instance == TIM4) {
 		/*uint32_t cycles = 0;
 		double timeCallback;
@@ -778,20 +775,24 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 
 		uint8_t Data = 0x0;
 
-
+		//Stop fifo MPU-6050 writing before reading
 		HAL_I2C_Mem_Write(&hi2c1, MPU6050_ADDR, FIFO_EN_REG, 1, &Data, 1, 1000);
+
+		//Number of bytes ready to read
 		HAL_I2C_Mem_Read(&hi2c1, MPU6050_ADDR, FIFO_COUNTH, 1, countArr, 2, 1000);
 		count = (uint16_t) (countArr[0] << 8 | countArr[1]);
-		DEBUG_PRINT(("Fifo count: %d\r\n\n", count));
+		DEBUG_PRINT(("[TIM4] Fifo count: %d\r\n\n", count));
 
 		if(count > 0 && count <= 1024) {
 			mpu_index = count;
-
 			Data = FIFO_R_W;
+
+			//I2C master-slave comunication for reading fifo buffer
 			HAL_I2C_Master_Transmit(&hi2c1, MPU6050_ADDR, &Data, 1, 1000);
 			HAL_I2C_Master_Receive_DMA(&hi2c1, MPU6050_ADDR, &mpu_data[0], count);
 		}
 		else {
+			//In case I cannot read the fifo buffer correctly, I initialise the device.
 			MPU6050_Init();
 		}
 
@@ -821,7 +822,7 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin){
 		DWT->CTRL |= 1;
 		DWT->CYCCNT = 0;
 		*/
-		DEBUG_PRINT(("[ESP_SIGNAL] Sending data to esp8266\r\n"));
+		DEBUG_PRINT(("[ESP_SIGNAL] Sending data to ESP8266\r\n"));
 		uint16_t road_quality = 0;
 
 		float mq_mean = float_sum(mq_data, mq_index)/mq_index;
@@ -837,19 +838,19 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin){
 
 		bad_quality_road_counter = 0;
 
-		DEBUG_PRINT(("[ESP_SIGNAL] i=%d, Longitude=%f, Latitude=%f, PPM = %f, Road_quality = %d, Fall_detected = %d\r\n\n", i, c.longitude, c.latitude, mq_mean, road_quality, fall_detected));
+		DEBUG_PRINT(("[ESP_SIGNAL] Data: Longitude=%f, Latitude=%f, PPM = %f, Road_quality = %d, Fall_detected = %d\r\n\n", c.longitude, c.latitude, mq_mean, road_quality, fall_detected));
 
 		char line[60];
 
-		snprintf(line, sizeof(line), "%d,%f,%f,%f,%d,%d\n", i, c.longitude, c.latitude, mq_mean, road_quality, fall_detected);
+		snprintf(line, sizeof(line), "%f,%f,%f,%d,%d\n", c.longitude, c.latitude, mq_mean, road_quality, fall_detected);
 
 		fall_detected=0;
-		i++;
+		mq_index=0;
 
 		//Sending data via USART to ESP8266
 		HAL_UART_Transmit(&huart2, (uint8_t*) (line), strlen(line), 1000);
 
-		__HAL_GPIO_EXTI_CLEAR_IT(EXTI1_IRQn);  //Todo: servono entrambi?
+		__HAL_GPIO_EXTI_CLEAR_IT(EXTI1_IRQn);
 		HAL_NVIC_ClearPendingIRQ(EXTI1_IRQn);
 
 		HAL_NVIC_DisableIRQ(EXTI1_IRQn);
@@ -862,12 +863,12 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin){
 		*/
 	}
 
-	if(GPIO_Pin == MPU_DATA_RDY_Pin){ //TODO: si può togliere, già messo sulla relazione
+	if(GPIO_Pin == MPU_DATA_RDY_Pin){
 
 		//Periodic timer start for mpu reading
-		DEBUG_PRINT(("[MPU_DATA_RDY_Pin] \r\n\n"));
+		DEBUG_PRINT(("[MPU_DATA_RDY_Pin] MPU-6050 fifo buffer starts to fill up\r\n\n"));
 		__HAL_TIM_CLEAR_FLAG(&htim4, TIM_SR_UIF);
-		HAL_TIM_Base_Start_IT(&htim4);
+		HAL_TIM_Base_Start_IT(&htim4); //Start 8 sec timer
 		HAL_NVIC_DisableIRQ(EXTI15_10_IRQn);
 	}
 }
@@ -878,7 +879,7 @@ void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef*hadc){
 
 	rawValue = HAL_ADC_GetValue(hadc);
 
-	v = ((float)rawValue) / 4095 * 4660;
+	v = ((float)rawValue) / 4095 * 4668;
 	ppm = ((v - 320.0) / 0.65) + 400;
 	//DEBUG_PRINT(("rawValue: %hu\r\n", rawValue));
 	//DEBUG_PRINT(("v: %f\r\n", v));
@@ -887,7 +888,6 @@ void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef*hadc){
 	mq_index = (mq_index + 1) % MQ_DATA_LENGTH;
 }
 
-//TODO: commenti
 void HAL_I2C_MasterRxCpltCallback(I2C_HandleTypeDef* hi2c){
 	/*uint32_t cycles = 0;
 	double timeCallback;
@@ -896,28 +896,33 @@ void HAL_I2C_MasterRxCpltCallback(I2C_HandleTypeDef* hi2c){
 	DWT->CYCCNT = 0;
 	*/
 
+	DEBUG_PRINT(("[HAL_I2C_MasterRxCpltCallback] Receive DMA callback\r\n"));
 	MPU_OK = 1;
 
 	/// Reactivate write buffer
 
 	uint8_t Data = 0x78;
+	//Restart writing inertial data to fifo buffer
 	HAL_I2C_Mem_Write(&hi2c1, MPU6050_ADDR, FIFO_EN_REG, 1, &Data, 1, 1000);
 	Data = 0x44;
+	//I clean the fifo buffer and reactivate its writing
 	HAL_I2C_Mem_Write(&hi2c1, MPU6050_ADDR, USER_CTRL, 1, &Data, 1, 1000);
 
 	float means[SLIDING_WINDOWS];
-	float temp_sums[SLIDING_WINDOWS*2];
+	float temp_sums[SLIDING_WINDOWS+1];
 	float accel_vectors[mpu_index/12], gyro_vectors[mpu_index/12];
 	uint16_t accel_vector_index=0, gyro_vector_index = 0;
 	float accel_sum = 0;
 	uint8_t sum_counter = 0, sum_index=0;
-	DEBUG_PRINT(("receive dma callback, mpu index: %d\r\n", mpu_index));
+
+
+	//Compute accelerations vectors
 	for(int i=0; i<mpu_index; i+=12){
 		Accel_X_RAW = (int16_t)(mpu_data[i] << 8 | mpu_data[i+1]);
 		Accel_Y_RAW = (int16_t)(mpu_data[i+2] << 8 | mpu_data[i+3]);
 		Accel_Z_RAW = (int16_t)(mpu_data[i+4] << 8 | mpu_data[i+5]);
 
-		Ax = Accel_X_RAW/16384.0 + offset_accelX;  // get the float g
+		Ax = Accel_X_RAW/16384.0 + offset_accelX;
 		Ay = Accel_Y_RAW/16384.0 + offset_accelY;
 		Az = Accel_Z_RAW/16384.0 + offset_accelZ;
 
@@ -942,14 +947,16 @@ void HAL_I2C_MasterRxCpltCallback(I2C_HandleTypeDef* hi2c){
 		float gyro_vector = sqrt(pow(Gx, 2)+pow(Gy, 2)+pow(Gz, 2));
 		gyro_vectors[gyro_vector_index++] = gyro_vector;
 
-		//DEBUG_PRINT(("burst #%d: Accelerazione lineare asse x: %f g, y: %f g, z: %f g\r\n", i/12, Ax, Ay, Az));
-		//DEBUG_PRINT(("Gyro asse x: %f °/s, y: %f °/s, z: %f °/s \tgyro_vector: %f\r\n", Gx, Gy, Gz, gyro_vector));
+		//DEBUG_PRINT(("Burst #%d: linear acceleration axis x: %f g, y: %f g, z: %f g\r\n", i/12, Ax, Ay, Az));
+		//DEBUG_PRINT(("Gyro exis x: %f °/s, y: %f °/s, z: %f °/s \tgyro_vector: %f\r\n", Gx, Gy, Gz, gyro_vector));
 	}
 
+	//Calculate sliding windows means
 	for(int i=0; i<SLIDING_WINDOWS; i++){
-		means[i]=(temp_sums[i]+temp_sums[i+1])/20;
-	}
+			means[i]=(temp_sums[i]+temp_sums[i+1])/20;
+		}
 
+	//Road quality end fall detection algorithm
 	for (int i = 0; i < 7; ++i) {
 		for(int j=0; j<20; j++){
 			if(j<10 && i<6){
@@ -965,7 +972,7 @@ void HAL_I2C_MasterRxCpltCallback(I2C_HandleTypeDef* hi2c){
 			float threshold = BASE_THRESHOLD - gyro_vectors[10*i+j]/250.0;
 			float difference = abs(accel_vectors[10*i+j] - means[i]);
 			if(difference > threshold) {
-				DEBUG_PRINT(("punto brutto alla misurazione nr. %d\r\n", 10*i+j));
+				//DEBUG_PRINT(("Bad point to the measurement nr. %d\r\n", 10*i+j));
 				bad_quality_road_counter++;
 				check_fall=1;
 			}
@@ -979,8 +986,8 @@ void HAL_I2C_MasterRxCpltCallback(I2C_HandleTypeDef* hi2c){
 
 	printf("TIME (HAL_I2C_MasterRxCpltCallback) =  %.2lf ms\n\r", timeCallback);
 	*/
-	DEBUG_PRINT(("Bad points calculated: %d\r\n", bad_quality_road_counter));
-	DEBUG_PRINT(("Fall_detected: %d\r\n\n", fall_detected));
+	DEBUG_PRINT(("[HAL_I2C_MasterRxCpltCallback] Bad points calculated: %d\r\n", bad_quality_road_counter));
+	DEBUG_PRINT(("[HAL_I2C_MasterRxCpltCallback] Fall_detected: %d\r\n\n", fall_detected));
 
 }
 /* USER CODE END 4 */
