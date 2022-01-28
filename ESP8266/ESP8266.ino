@@ -20,7 +20,6 @@ const char * myWriteAPIKey = APIKEY;
 
 String currentLine;
 
-int lastTemp;
 float lastLongitude;
 float lastLatitude;
 float lastPpm;
@@ -93,9 +92,6 @@ void read_serial_packet() {
 
     int commaSplitIndex = currentLine.indexOf(',');
     if (commaSplitIndex > 0) {
-      String tempStr = currentLine.substring(0, commaSplitIndex);
-      currentLine = currentLine.substring(commaSplitIndex + 1);
-      commaSplitIndex = currentLine.indexOf(',');
       String longitudeStr = currentLine.substring(0, commaSplitIndex);
       currentLine = currentLine.substring(commaSplitIndex + 1);
       commaSplitIndex = currentLine.indexOf(',');
@@ -108,7 +104,6 @@ void read_serial_packet() {
       String roadQualityStr = currentLine.substring(0, commaSplitIndex);
       String fallDetectedStr = currentLine.substring(commaSplitIndex + 1);
 
-      lastTemp = tempStr.toInt();
       lastLongitude = longitudeStr.toFloat();
       lastLatitude = latitudeStr.toFloat();
       lastPpm = ppmStr.toFloat();
@@ -228,7 +223,6 @@ void createWebServer(){
   }}
 
 void send_to_thingsspeak() {
-  ThingSpeak.setField(1, lastTemp);
   ThingSpeak.setField(2, lastLongitude);
   ThingSpeak.setField(3, lastLatitude);
   ThingSpeak.setField(4, lastPpm);
