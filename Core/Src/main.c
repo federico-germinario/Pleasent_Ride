@@ -306,6 +306,7 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
+<<<<<<< HEAD
   MX_USART2_UART_Init();   //UART used to communicate with the ESP8266
   MX_TIM2_Init();	       //30 sec timer to wake up ESP8266
   MX_USART3_UART_Init();   //Debugging UART
@@ -316,6 +317,18 @@ int main(void)
   MX_TIM4_Init();   	   //8.1 sec timer for reading inertial data from MPU-6050
   /* USER CODE BEGIN 2 */
   RetargetInit(&huart3);   //Retarget printf to uart3
+=======
+  MX_USART2_UART_Init();
+  MX_TIM2_Init();
+  MX_USART3_UART_Init();
+  MX_I2C1_Init();
+  MX_ADC1_Init();
+  MX_DMA_Init();
+  MX_TIM3_Init();
+  MX_TIM4_Init();
+  /* USER CODE BEGIN 2 */
+  RetargetInit(&huart3); 	//Retarget printf to uart3
+>>>>>>> f2b69879afcec00e3ccd489fe16af62095d9791f
   fake_gps_init();
 
   MPU6050_Init();
@@ -838,7 +851,11 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin){
 
 		bad_quality_road_counter = 0;
 
+<<<<<<< HEAD
 		DEBUG_PRINT(("[ESP_SIGNAL] Data: Longitude=%f, Latitude=%f, PPM=%f, Road_quality=%d, Fall_detected=%d\r\n\n", c.longitude, c.latitude, mq_mean, road_quality, fall_detected));
+=======
+		DEBUG_PRINT(("[ESP_SIGNAL] Data: Longitude=%f, Latitude=%f, PPM = %f, Road_quality = %d, Fall_detected = %d\r\n\n", c.longitude, c.latitude, mq_mean, road_quality, fall_detected));
+>>>>>>> f2b69879afcec00e3ccd489fe16af62095d9791f
 
 		char line[60];
 
