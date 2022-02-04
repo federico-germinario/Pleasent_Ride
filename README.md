@@ -1,5 +1,4 @@
-# Project_PROS
-Progetto corso di Progettazione di Sistemi Operativi @UNIMI
+# Pleasent Ride
 
 # Descrizione del progetto
 
