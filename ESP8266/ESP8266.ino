@@ -37,7 +37,7 @@ void createWebServer();
 void setup() {
   Serial.begin(115200);
   WiFi.disconnect();
-  EEPROM.begin(512); //Inizializzazione EEPROM
+  EEPROM.begin(512);                //Inizializzazione EEPROM
   delay(10);
 
   pinMode(LED_BUILTIN, OUTPUT);     //Inizializzazione LED_BUILTIN come pinout
@@ -46,7 +46,7 @@ void setup() {
   digitalWrite(LED_BUILTIN, HIGH);  //Led spento
   digitalWrite(2, LOW);         
   
-  Serial.setTimeout(1000); //Aspetto max 1 sec una stringa sulla seriale
+  Serial.setTimeout(1000);          //Aspetto max 1 sec una stringa sulla seriale
   
   String esid;
   for (int i = 0; i < 32; ++i){
@@ -58,8 +58,8 @@ void setup() {
     epass += char(EEPROM.read(i));
   }
 
-  WiFi.mode(WIFI_STA);
-  ThingSpeak.begin(client); //Inizializzazione ThingSpeak
+  WiFi.mode(WIFI_STA);               //Solo client
+  ThingSpeak.begin(client);          //Inizializzazione ThingSpeak
   connect_to_wifi(esid.c_str(), epass.c_str());
 }
 
@@ -229,8 +229,8 @@ void send_to_thingsspeak() {
   ThingSpeak.setField(5, lastRoadQuality);
   ThingSpeak.setField(6, lastFallDetected);
   
-  //Invio i dati a ThinkSpeak tramite chiamata REST HTTPS
-  int x = ThingSpeak.writeFields(myChannelNumber, myWriteAPIKey);
+  //Invio i dati a ThingSpeak tramite chiamata REST HTTPS
+  ThingSpeak.writeFields(myChannelNumber, myWriteAPIKey);
 
   //Attivo la modalità deep sleep finchè non riceverò un hard reset
   ESP.deepSleep(0); 

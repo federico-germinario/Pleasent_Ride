@@ -306,7 +306,7 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
-<<<<<<< HEAD
+
   MX_USART2_UART_Init();   //UART used to communicate with the ESP8266
   MX_TIM2_Init();	       //30 sec timer to wake up ESP8266
   MX_USART3_UART_Init();   //Debugging UART
@@ -317,18 +317,7 @@ int main(void)
   MX_TIM4_Init();   	   //8.1 sec timer for reading inertial data from MPU-6050
   /* USER CODE BEGIN 2 */
   RetargetInit(&huart3);   //Retarget printf to uart3
-=======
-  MX_USART2_UART_Init();
-  MX_TIM2_Init();
-  MX_USART3_UART_Init();
-  MX_I2C1_Init();
-  MX_ADC1_Init();
-  MX_DMA_Init();
-  MX_TIM3_Init();
-  MX_TIM4_Init();
-  /* USER CODE BEGIN 2 */
-  RetargetInit(&huart3); 	//Retarget printf to uart3
->>>>>>> f2b69879afcec00e3ccd489fe16af62095d9791f
+
   fake_gps_init();
 
   MPU6050_Init();
@@ -510,9 +499,9 @@ static void MX_TIM2_Init(void)
 
   /* USER CODE END TIM2_Init 1 */
   htim2.Instance = TIM2;
-  htim2.Init.Prescaler = 24999;
+  htim2.Init.Prescaler = 24999;    //25MHz/25000 = 1000 Hz
   htim2.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim2.Init.Period = 29999;
+  htim2.Init.Period = 29999;       //1000Hz / 30000 = 0.033Hz = 30
   htim2.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim2.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
   if (HAL_TIM_Base_Init(&htim2) != HAL_OK)
@@ -851,11 +840,7 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin){
 
 		bad_quality_road_counter = 0;
 
-<<<<<<< HEAD
 		DEBUG_PRINT(("[ESP_SIGNAL] Data: Longitude=%f, Latitude=%f, PPM=%f, Road_quality=%d, Fall_detected=%d\r\n\n", c.longitude, c.latitude, mq_mean, road_quality, fall_detected));
-=======
-		DEBUG_PRINT(("[ESP_SIGNAL] Data: Longitude=%f, Latitude=%f, PPM = %f, Road_quality = %d, Fall_detected = %d\r\n\n", c.longitude, c.latitude, mq_mean, road_quality, fall_detected));
->>>>>>> f2b69879afcec00e3ccd489fe16af62095d9791f
 
 		char line[60];
 
@@ -971,12 +956,12 @@ void HAL_I2C_MasterRxCpltCallback(I2C_HandleTypeDef* hi2c){
 	//Calculate sliding windows means
 	for(int i=0; i<SLIDING_WINDOWS; i++){
 			means[i]=(temp_sums[i]+temp_sums[i+1])/20;
-		}
+	}
 
 	//Road quality end fall detection algorithm
-	for (int i = 0; i < 7; ++i) {
+	for (int i = 0; i < SLIDING_WINDOWS; ++i) {
 		for(int j=0; j<20; j++){
-			if(j<10 && i<6){
+			if(j<10 && i<6){  //Caduta
 				fall_counter_increment(gyro_vectors[10*i+j]);
 			}
 			if(i==6){
